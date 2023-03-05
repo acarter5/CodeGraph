@@ -1,27 +1,13 @@
-import * as vscode from "vscode";
 import { Project, SyntaxKind, ts } from "ts-morph";
-import * as typescript from "typescript";
-import { ExcludeNullish } from "./utils/index";
+import { ExcludeNullish } from "../utils/index";
+import CodeGraphParser from "./index";
 
-const {
-  window: { activeTextEditor, showTextDocument },
-  commands,
-  workspace: ws,
-  Position,
-  Uri,
-} = vscode;
-
-export default class CodeGraphParser {
-  targetFunctionCode: string;
-  targetFileCode: string;
-
+export default class CodeGraphParserTsMorph extends CodeGraphParser {
   constructor(targetFunctionCode: string, targetFileCode: string) {
-    this.targetFunctionCode = targetFunctionCode;
-    this.targetFileCode = targetFileCode;
+    super(targetFunctionCode, targetFileCode);
   }
 
-  async tSMorphParse() {
-    // get unpositioned function node
+  async parse() {
     const { targetFunctionCode, targetFileCode } = this;
 
     const funcProject = new Project();
@@ -54,13 +40,4 @@ export default class CodeGraphParser {
       fileNode: fileSourceFile,
     };
   }
-
-  //   async tsNativeParse() {
-  //     const tsSourceFile = ts.createSourceFile(
-  //       "test.ts",
-  //       targetFunctionCode,
-  //       ts.ScriptTarget.ES5,
-  //       true
-  //     );
-  //   }
 }
