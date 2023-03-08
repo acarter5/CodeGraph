@@ -4,6 +4,7 @@ import {
   FunctionExpression,
   ArrowFunction,
   SyntaxKind,
+  createWrappedNode,
 } from "ts-morph";
 
 import Scanner from "./index";
@@ -14,8 +15,40 @@ import { ExcludeNullish } from "../utils";
 import type { LineColumnFinder } from "line-column";
 import type { TSMorphFunctionNode } from "types/index";
 
+function looksLike(a, b) {
+  return (
+    a &&
+    b &&
+    Object.keys(b).every((bKey) => {
+      if (bKey === "manipulationSettings" || bKey.startsWith("_")) {
+        return true;
+      }
+      const bVal = b[bKey];
+      const aVal = a[bKey];
+
+      if (typeof bVal === "function") {
+        console.log("[hf]", "FUNCTION CONDITION HIT");
+        return bVal(aVal);
+      }
+      const result = Array.isArray(aVal)
+        ? Array.isArray(bVal) &&
+          aVal.length === bVal.length &&
+          aVal.every((val, idx) => looksLike(val, bVal[idx]))
+        : isPrimitive(bVal)
+        ? bVal === aVal
+        : looksLike(aVal, bVal);
+      console.log("[hf] LOOKS LIKE", { bKey, aVal, bVal, result });
+      return result;
+    })
+  );
+}
+
+function isPrimitive(val) {
+  return val == null || /^[sbn]/.test(typeof val);
+}
+
 export default class ScannerTsMorph extends Scanner {
-  postitionedFunctionNode: TSMorphFunctionNode;
+  postitionedFunctionNode: TSMorphFunctionNode | null;
   callExpressionLocations: LineColumnFinder[];
   constructor(
     unpostitionedFunctionNode: TSMorphFunctionNode,
@@ -30,6 +63,10 @@ export default class ScannerTsMorph extends Scanner {
 
   private _getCallExpressionLocations() {
     const { postitionedFunctionNode, targetFileCode } = this;
+
+    if (!postitionedFunctionNode) {
+      return [];
+    }
 
     const callExpressionNodes = postitionedFunctionNode.getDescendantsOfKind(
       SyntaxKind.CallExpression
@@ -57,33 +94,57 @@ export default class ScannerTsMorph extends Scanner {
     return tsMorphCalleeLocations;
   }
 
+  // TODO: clean this up
   private _findPositionedFunctionNode() {
     const { unpostitionedFunctionNode, fileNode } = this;
 
+    const unpostitionedFunctionNodeStructure =
+      unpostitionedFunctionNode.getStructure &&
+      unpostitionedFunctionNode.getStructure();
+
+    if (!unpostitionedFunctionNodeStructure) {
+      throw Error("cannot get unpositioned node structure");
+    }
+    // const unpostitionedFunctionNodeProperties =
+    //   unpostitionedFunctionNode.getProperties();
+
     const unPositionedFunctionNodeText = unpostitionedFunctionNode?.getText();
 
-    // todo: clean this up
-    if (!unPositionedFunctionNodeText) {
-      debugger;
-      console.error("Function declaration node text not found");
-      throw Error("Function declaration node text not found");
-    }
+    // if (!unPositionedFunctionNodeText) {
+    //   debugger;
+    //   console.error("Function declaration node text not found");
+    //   throw Error("Function declaration node text not found");
+    // }
 
     let postitionedFunctionNode;
 
-    fileNode.forEachDescendant((fileNodeDescendant) => {
+    fileNode.forEachDescendant((fileNodeDescendant, traverse) => {
       if (
         fileNodeDescendant.getKind() === unpostitionedFunctionNode?.getKind()
       ) {
+        const fileNodeDescendantStructure = fileNodeDescendant.getStructure();
+        const isMatch = looksLike(
+          fileNodeDescendantStructure,
+          unpostitionedFunctionNodeStructure
+        );
+
+        // if (isMatch) {
+        //   console.log("[hf]", {
+        //     fileNodeDescendantStructure,
+        //     unpostitionedFunctionNodeStructure,
+        //     isMatch,
+        //   });
+        // }
+        // const fileNodeDescendantProperties = fileNodeDescendant.getProperties();
+        // if (isMatch) {
+        //   debugger;
+        // }
         const fileNodeDescendantText = fileNodeDescendant.getText();
         // console.log("[hf] node text:", {
         //   fileNodeDescendantText,
         //   unPositionedFunctionNodeText,
         // });
-        if (
-          fileNodeDescendantText.localeCompare(unPositionedFunctionNodeText) ===
-          0
-        ) {
+        if (isMatch) {
           postitionedFunctionNode = fileNodeDescendant;
           return;
         }
@@ -104,9 +165,9 @@ export default class ScannerTsMorph extends Scanner {
       return node as FunctionExpression;
     } else if (node instanceof ArrowFunction) {
       return node as ArrowFunction;
+    } else {
+      return null;
     }
-
-    throw Error(`invalid type for positioned function. type = ${typeof node}`);
   }
 }
 
