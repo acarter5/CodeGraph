@@ -4,7 +4,6 @@ import {
   FunctionExpression,
   ArrowFunction,
   SyntaxKind,
-  createWrappedNode,
 } from "ts-morph";
 
 import Scanner from "./index";
@@ -13,39 +12,8 @@ import lineColumn = require("line-column");
 import { ExcludeNullish } from "../utils";
 // @ts-expect-error
 import type { LineColumnFinder } from "line-column";
+import { looksLike } from "src/utils/tsMorph";
 import type { TSMorphFunctionNode } from "types/index";
-
-function looksLike(a, b) {
-  return (
-    a &&
-    b &&
-    Object.keys(b).every((bKey) => {
-      if (bKey === "manipulationSettings" || bKey.startsWith("_")) {
-        return true;
-      }
-      const bVal = b[bKey];
-      const aVal = a[bKey];
-
-      if (typeof bVal === "function") {
-        console.log("[hf]", "FUNCTION CONDITION HIT");
-        return bVal(aVal);
-      }
-      const result = Array.isArray(aVal)
-        ? Array.isArray(bVal) &&
-          aVal.length === bVal.length &&
-          aVal.every((val, idx) => looksLike(val, bVal[idx]))
-        : isPrimitive(bVal)
-        ? bVal === aVal
-        : looksLike(aVal, bVal);
-      console.log("[hf] LOOKS LIKE", { bKey, aVal, bVal, result });
-      return result;
-    })
-  );
-}
-
-function isPrimitive(val) {
-  return val == null || /^[sbn]/.test(typeof val);
-}
 
 export default class ScannerTsMorph extends Scanner {
   postitionedFunctionNode: TSMorphFunctionNode | null;
@@ -105,20 +73,10 @@ export default class ScannerTsMorph extends Scanner {
     if (!unpostitionedFunctionNodeStructure) {
       throw Error("cannot get unpositioned node structure");
     }
-    // const unpostitionedFunctionNodeProperties =
-    //   unpostitionedFunctionNode.getProperties();
-
-    const unPositionedFunctionNodeText = unpostitionedFunctionNode?.getText();
-
-    // if (!unPositionedFunctionNodeText) {
-    //   debugger;
-    //   console.error("Function declaration node text not found");
-    //   throw Error("Function declaration node text not found");
-    // }
 
     let postitionedFunctionNode;
 
-    fileNode.forEachDescendant((fileNodeDescendant, traverse) => {
+    fileNode.forEachDescendant((fileNodeDescendant) => {
       if (
         fileNodeDescendant.getKind() === unpostitionedFunctionNode?.getKind()
       ) {
@@ -128,22 +86,6 @@ export default class ScannerTsMorph extends Scanner {
           unpostitionedFunctionNodeStructure
         );
 
-        // if (isMatch) {
-        //   console.log("[hf]", {
-        //     fileNodeDescendantStructure,
-        //     unpostitionedFunctionNodeStructure,
-        //     isMatch,
-        //   });
-        // }
-        // const fileNodeDescendantProperties = fileNodeDescendant.getProperties();
-        // if (isMatch) {
-        //   debugger;
-        // }
-        const fileNodeDescendantText = fileNodeDescendant.getText();
-        // console.log("[hf] node text:", {
-        //   fileNodeDescendantText,
-        //   unPositionedFunctionNodeText,
-        // });
         if (isMatch) {
           postitionedFunctionNode = fileNodeDescendant;
           return;

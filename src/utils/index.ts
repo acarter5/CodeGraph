@@ -1,10 +1,4 @@
-import { TSMorphFunctionNode, FailReason } from "types/index";
 import * as vscode from "vscode";
-import * as hash from "object-hash";
-import { ArrowFunction, SyntaxKind } from "ts-morph";
-import * as objectHash from "object-hash";
-// @ts-expect-error
-import type { LineColumnFinder } from "line-column";
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 export function ExcludeNullish<T>(v: T | null | undefined): v is T {
@@ -101,73 +95,6 @@ export function looksLikeSkipPositionTsMorph(a, b, depth): boolean {
     })
   );
 }
-
-const getTsMorphNodeFunctionName = (node: TSMorphFunctionNode) => {
-  let name: string | undefined;
-  if (node instanceof ArrowFunction || !node.getName) {
-    const declarationParent = node.getParentIfKind(
-      SyntaxKind.VariableDeclaration
-    );
-    name = declarationParent && declarationParent.getName();
-  } else {
-    name = node.getName();
-  }
-
-  return name || "Anonymous";
-};
-
-export const buildNodeMapNodeFromTsMorphNode = (
-  node: TSMorphFunctionNode,
-  targetFunctionUri: vscode.Uri,
-  targetFunctionRange: vscode.Range,
-  targetFunctionCode: string,
-  isEntry: boolean,
-  parentHash: string | undefined
-) => {
-  const astNodeHash = hash.sha1(node.compilerNode);
-  const name = getTsMorphNodeFunctionName(node);
-  const graphNode = {
-    id: astNodeHash,
-    // astNode: postitionedFunctionNode.compilerNode,
-    uri: targetFunctionUri,
-    range: targetFunctionRange,
-    code: targetFunctionCode,
-    incomingCalls: isEntry ? [] : [parentHash],
-    outgoingCalls: [] as string[],
-    name,
-  };
-
-  return graphNode;
-};
-
-export const buildFailureNode = (
-  args:
-    | {
-        code: string;
-        failReason: FailReason.parseFail;
-        uri: vscode.Uri;
-        range: vscode.Range;
-        parentId: string | undefined;
-      }
-    | {
-        failReason: FailReason.findDefinitionFail;
-        callExpressionLocation: LineColumnFinder;
-        parentId: string | undefined;
-      }
-) => {
-  const { parentId, ...rest } = args;
-  const id =
-    args.failReason === FailReason.parseFail
-      ? objectHash.sha1(rest)
-      : objectHash.sha1(args);
-
-  return {
-    ...rest,
-    id,
-    failure: true as true,
-    incomingCalls: parentId ? [parentId] : [],
-  };
-};
 
 export const verifyCallDefinitionLocations = (
   callDefinitionLocations: (vscode.Location | vscode.LocationLink)[][]

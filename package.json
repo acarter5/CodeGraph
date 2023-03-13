@@ -58,6 +58,7 @@
     "@babel/traverse": "^7.21.2",
     "@babel/types": "^7.21.2",
     "core-js-compat": "^3.29.0",
+    "dom-to-image-more": "^2.15.0",
     "line-column": "^1.0.2",
     "object-hash": "^3.0.0",
     "save": "^2.9.0",

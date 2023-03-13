@@ -6,7 +6,7 @@ export default class CodeGraphParserTsNative extends CodeGraphParser {
     super(targetFunctionCode, targetFileCode);
   }
 
-  // this is not fully implmented. do not use.
+  // this is not implmented yet. do not use.
   public async parse() {
     const tsSourceFile = ts.createSourceFile(
       "test.ts",
