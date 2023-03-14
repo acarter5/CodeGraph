@@ -42,8 +42,6 @@ export default class Builder {
 
     const { nodeMap, view } = this;
 
-    const { activeTextEditor } = vscode.window;
-
     if (!nodeData) {
       isEntry = true;
       ({ targetFunctionRange, targetFunctionUri } = this.entry);
@@ -132,12 +130,6 @@ export default class Builder {
 
     textEditor.selection = targetFunctionSelection;
 
-    console.log("[hf]", {
-      textEditor,
-      targetFunctionSelection,
-      textEditorSelection: textEditor.selection,
-    });
-
     await vscode.commands.executeCommand(
       "editor.action.clipboardCopyWithSyntaxHighlightingAction"
     );
@@ -218,16 +210,15 @@ export default class Builder {
           })
     );
 
-    // If this doesn't work, try a function that gets lastSnapshotedNode and also check that the message callback is working
-    // while (view.lastSnapshotedNode !== mapNode.id) {
-    //   console.log("[hf] in builder", {
-    //     snapshotedNode: view.lastSnapshotedNode,
-    //     curNode: mapNode.id,
-    //   });
-    //   // debugger;
-    //   await new Promise((resolve) => setTimeout(resolve, 1000));
-    // }
-    // // debugger;
+    /*
+      It'd probably be faster (and cleaner) to allow the below returned promises from recursive calls to
+      buildNodeMap to resolve in parallel. I could forego taking snapshots until the nodeMap is built and 
+      then loop through it, taking the snapshots then but:
+          1. I like the UX of showing the function being processed in the webview as it's being processed
+          2. That would duplicate some of the work (i.e. opening documents)
+          3. I'd need to put more thought into whether letting the buildNodeMap calls execute in parallel will
+            mess up the building of the nodeMap in some way 
+    */
     const waitCondition = () => view.getLastSnapshotedNode() === mapNode.id;
     let snapshotAttempt = 0;
     const failFunction = () => {
@@ -239,7 +230,6 @@ export default class Builder {
       });
     };
     await waitFor(waitCondition, failFunction);
-    // debugger;
 
     const childNodes: (MapNode | FailNode | null)[] = [];
 
@@ -272,36 +262,6 @@ export default class Builder {
 
         idx += 1;
       }
-
-      // const childNodes = await Promise.all(
-      //   verifiedCallDefinitionLocations.map((loc) => {
-      //     if ("failure" in loc) {
-      //       return loc;
-      //     } else if (loc instanceof vscode.Location) {
-      //       // excluding node_modules by default to keep from getting too deep into esoteric code
-      //       if (loc?.uri?.path.includes("node_modules")) {
-      //         return null;
-      //       } else {
-      //         return this.buildNodeMap({
-      //           targetFunctionRange: loc.range,
-      //           targetFunctionUri: loc.uri,
-      //           parentHash: mapNode.id,
-      //         });
-      //       }
-      //     } else {
-      //       // excluding node_modules by default to keep from getting too deep into esoteric code
-      //       if (loc?.targetUri?.path.includes("node_modules")) {
-      //         return null;
-      //       } else {
-      //         return this.buildNodeMap({
-      //           targetFunctionRange: loc.targetRange,
-      //           targetFunctionUri: loc.targetUri,
-      //           parentHash: mapNode.id,
-      //         });
-      //       }
-      //     }
-      //   })
-      // ;
 
       console.log("[hf]", { childNodes });
 
