@@ -63,19 +63,25 @@ export default class Builder {
 
     if (!unPositionedFunctionNode || !fileNode) {
       console.error("parser did not return node");
-      const node = this._buildFailureNode({
+      const failNode = this._buildFailureNode({
         failReason: FailReason.parseFail,
         uri: targetFunctionUri,
         range: targetFunctionRange,
         code: targetFunctionCode,
         parentId: parentHash,
       });
-      if (nodeMap.has(node.id)) {
-        parentHash && nodeMap.get(node.id)?.incomingCalls.push(parentHash);
+      if (nodeMap.has(failNode.id)) {
+        parentHash && nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
       } else {
-        nodeMap.set(node.id, node);
+        const { panelData } = await reader.prepForPageLoad(
+          failNode.id,
+          "Function parse fail"
+        );
+
+        await view.loadPage(panelData);
+        nodeMap.set(failNode.id, failNode);
       }
-      return node;
+      return failNode;
     }
 
     const scanner = new ScannerTsMorph(
