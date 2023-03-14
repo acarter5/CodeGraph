@@ -110,28 +110,9 @@ export default class Builder {
       parentHash
     );
 
-    const panelData = {
-      code: targetFunctionCode,
-      uri: targetFunctionUri,
-      range: targetFunctionRange,
-      start: targetFunctionRange.start.line,
-      end: targetFunctionRange.end.line,
-      nodeId: mapNode.id,
-    };
-
-    const textEditor = await vscode.window.showTextDocument(targetDocument);
-
-    const targetFunctionSelection = new vscode.Selection(
-      targetFunctionRange.start.line,
-      targetFunctionRange.start.character,
-      targetFunctionRange.end.line,
-      targetFunctionRange.end.character
-    );
-
-    textEditor.selection = targetFunctionSelection;
-
-    await vscode.commands.executeCommand(
-      "editor.action.clipboardCopyWithSyntaxHighlightingAction"
+    const { panelData } = await reader.prepForPageLoad(
+      mapNode.id,
+      mapNode.name
     );
 
     await view.loadPage(panelData);
@@ -262,8 +243,6 @@ export default class Builder {
 
         idx += 1;
       }
-
-      console.log("[hf]", { childNodes });
 
       mapNode.outgoingCalls = childNodes
         .filter(ExcludeNullish)

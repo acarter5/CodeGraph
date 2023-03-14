@@ -41,7 +41,7 @@ export default class View {
     });
   }
 
-  public async loadPage(data: PageData) {
+  public async loadPage(panelData: PageData) {
     const contentPath = resolve(
       this.context.extensionPath,
       "resources",
@@ -59,7 +59,7 @@ export default class View {
 
     replacements.push({
       key: "__DATA_PLACEHOLDER__",
-      value: JSON.stringify(JSON.stringify(data)),
+      value: JSON.stringify(JSON.stringify(panelData)),
     });
 
     replacements.forEach(({ key, value }) => {

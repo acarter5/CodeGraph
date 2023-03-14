@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 
+import * as ts from "typescript";
+
 import {
   FunctionDeclaration,
   FunctionExpression,
@@ -59,14 +61,16 @@ export type NodeRawData = EntryNodeRawData & {
   parentHash: string;
 };
 
-export type NodeMap = Map<string, MapNode | FailNode>;
+export type NodeMap = ts.ESMap<string, MapNode | FailNode>;
 
 export type GraphNode = (MapNode | FailNode | { recursionId: string }) & {
   children: (MapNode | FailNode)[];
 };
 
 export type PageData = {
-  code: string;
+  functionName: string;
   uri: vscode.Uri;
+  start: number;
+  end: number;
   range: vscode.Range;
 };

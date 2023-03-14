@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import Reader from "./index";
 
-const { workspace: ws } = vscode;
+const { workspace: ws, window } = vscode;
 
 export default class ReaderVSCode extends Reader {
   targetDocument: vscode.TextDocument | undefined;
@@ -84,5 +84,39 @@ export default class ReaderVSCode extends Reader {
     this.targetFunctionCode = targetFunctionCode;
 
     return { targetDocument, targetFunctionCode, targetFileCode };
+  }
+
+  public async prepForPageLoad(nodeId: string, functionName: string) {
+    const { targetDocument, targetFunctionRange } = this;
+
+    if (!targetDocument) {
+      throw Error("target document not instantiated");
+    }
+
+    const textEditor = await vscode.window.showTextDocument(targetDocument);
+
+    const targetFunctionSelection = new vscode.Selection(
+      targetFunctionRange.start.line,
+      targetFunctionRange.start.character,
+      targetFunctionRange.end.line,
+      targetFunctionRange.end.character
+    );
+
+    textEditor.selection = targetFunctionSelection;
+
+    await vscode.commands.executeCommand(
+      "editor.action.clipboardCopyWithSyntaxHighlightingAction"
+    );
+
+    return {
+      panelData: {
+        uri: this.targetFunctionUri,
+        start: targetFunctionRange.start.line,
+        end: targetFunctionRange.end.line,
+        nodeId: nodeId,
+        functionName,
+        range: targetFunctionRange,
+      },
+    };
   }
 }
