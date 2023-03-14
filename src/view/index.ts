@@ -3,11 +3,13 @@ import * as vscode from "vscode";
 import type { PageData } from "types/index";
 import { readFile, PathLike } from "fs";
 
-import { placeholders } from "src/constants/index";
+import { placeholders, MESSAGES } from "src/constants/index";
+import { MemberExpression } from "ts-morph";
 
 export default class View {
   panel: vscode.WebviewPanel;
   context: vscode.ExtensionContext;
+  lastSnapshotedNode: string | null;
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
     this.panel = vscode.window.createWebviewPanel(
@@ -22,6 +24,21 @@ export default class View {
         localResourceRoots: [vscode.Uri.file(context.extensionPath)],
       }
     );
+
+    this.lastSnapshotedNode = null;
+
+    this.panel.webview.onDidReceiveMessage(async ({ type, data, message }) => {
+      console.log("[hf] in panel callBack", {
+        prevSnapshotedNode: this.lastSnapshotedNode,
+        newSnapshotedNode: data.snapshotedNode,
+        this: this,
+        type,
+        data,
+      });
+      if ((type = MESSAGES.snapshotTaken)) {
+        this.lastSnapshotedNode = data.snapshotedNode;
+      }
+    });
   }
 
   public async loadPage(data: PageData) {
@@ -51,6 +68,10 @@ export default class View {
 
     html = html.replace(/__CSP_SOURCE__/g, this.panel.webview.cspSource);
     this.panel.webview.html = html;
+  }
+
+  public getLastSnapshotedNode() {
+    return this.lastSnapshotedNode;
   }
 
   private _read(path: PathLike): Promise<string> {

@@ -104,7 +104,7 @@
     const linesNode = document.getElementById("lines");
     const titleNode = document.getElementById("title");
 
-    const { start, end, autoCopy } = window.__data__;
+    const { start, end, autoCopy, nodeId } = window.__data__;
 
     // titleNode.innerHTML = fileName
     titleNode.innerHTML = "fileName";
@@ -119,6 +119,15 @@
     containerNode.style.opacity = 1;
 
     footer.style.display = "flex";
+
+    setTimeout(() => {
+      vscode.postMessage({
+        type: "snapshotTaken",
+        data: {
+          snapshotedNode: nodeId,
+        },
+      });
+    }, 200);
 
     // if (autoCopy) {
     //   setTimeout(() => copyImage(), 200);

@@ -7,3 +7,7 @@ export const placeholders = [
   },
   { key: "__IMAGE__", value: "" },
 ];
+
+export enum MESSAGES {
+  snapshotTaken = "snapshotTaken",
+}

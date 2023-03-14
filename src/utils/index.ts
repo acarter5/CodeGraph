@@ -113,3 +113,15 @@ export const verifyCallDefinitionLocations = (
     throw Error("call definition location not found");
   }
 };
+
+export function waitFor(conditionFunction, failFunction) {
+  const poll = (resolve) => {
+    if (conditionFunction()) resolve();
+    else {
+      failFunction();
+      setTimeout((_) => poll(resolve), 400);
+    }
+  };
+
+  return new Promise(poll);
+}
