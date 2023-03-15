@@ -6,7 +6,7 @@ import ReaderVSCode from "../reader/vscode";
 import ScannerTsMorph from "../scanner/tsMorph";
 import View from "../view/index";
 
-import { ExcludeNullish, waitFor } from "src/utils";
+import { ExcludeNullish } from "src/utils";
 import { getTsMorphNodeFunctionName } from "src/utils/tsMorph";
 import type {
   EntryNodeRawData,
@@ -40,7 +40,9 @@ export default class Builder {
     this.view = view;
   }
 
-  public async buildNodeMap(nodeData: NodeRawData | undefined) {
+  public async buildNodeMap(
+    nodeData: NodeRawData | undefined
+  ): Promise<MapNode | FailNode> {
     let isEntry: boolean;
     let targetFunctionRange: vscode.Range;
     let targetFunctionUri: vscode.Uri;
@@ -113,7 +115,7 @@ export default class Builder {
       });
       if (nodeMap.has(failNode.id)) {
         parentHash && nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
-        return;
+        return nodeMap.get(failNode.id) as FailNode;
       }
       nodeMap.set(id, failNode);
       const { panelData } = await reader.prepForPageLoad(
@@ -135,6 +137,12 @@ export default class Builder {
       parentHash
     );
 
+    if (nodeMap.has(mapNode.id) && parentHash) {
+      const existingNode = nodeMap.get(mapNode.id) as MapNode;
+      existingNode.incomingCalls.push(parentHash);
+      return existingNode;
+    }
+
     const { panelData } = await reader.prepForPageLoad(
       mapNode.id,
       mapNode.name
@@ -144,11 +152,6 @@ export default class Builder {
 
     if (isEntry) {
       this.entryNodeId = mapNode.id;
-    }
-
-    if (nodeMap.has(mapNode.id) && parentHash) {
-      nodeMap.get(mapNode.id)?.incomingCalls.push(parentHash);
-      return null;
     }
 
     nodeMap.set(mapNode.id, mapNode);
@@ -201,7 +204,6 @@ export default class Builder {
       We're handling these cases by returning a node with the callExpressionLocation. That way it should be easy
       to locate these failures and replace them with a valid node that the user finds seperately.
     */
-    // TODO: do I need to add these failNodes to the node map? I think probably yes.
     const verifiedCallDefinitionLocations: (
       | vscode.Location
       | vscode.LocationLink
@@ -231,26 +233,29 @@ export default class Builder {
 
     try {
       let idx = 0;
-      for (let loc of verifiedCallDefinitionLocations) {
-        if ("failure" in loc) {
-          childNodes[idx] = loc;
-        } else if (loc instanceof vscode.Location) {
-          if (loc?.uri?.path.includes("node_modules")) {
+      for (let locOrFail of verifiedCallDefinitionLocations) {
+        if ("failure" in locOrFail) {
+          if (!nodeMap.has(locOrFail.id)) {
+            nodeMap.set(locOrFail.id, locOrFail);
+          }
+          childNodes[idx] = locOrFail;
+        } else if (locOrFail instanceof vscode.Location) {
+          if (locOrFail?.uri?.path.includes("node_modules")) {
             childNodes[idx] = null;
           } else {
             childNodes[idx] = await this.buildNodeMap({
-              targetFunctionRange: loc.range,
-              targetFunctionUri: loc.uri,
+              targetFunctionRange: locOrFail.range,
+              targetFunctionUri: locOrFail.uri,
               parentHash: mapNode.id,
             });
           }
         } else {
-          if (loc?.targetUri?.path.includes("node_modules")) {
+          if (locOrFail?.targetUri?.path.includes("node_modules")) {
             childNodes[idx] = null;
           } else {
             childNodes[idx] = await this.buildNodeMap({
-              targetFunctionRange: loc.targetRange,
-              targetFunctionUri: loc.targetUri,
+              targetFunctionRange: locOrFail.targetRange,
+              targetFunctionUri: locOrFail.targetUri,
               parentHash: mapNode.id,
             });
           }
