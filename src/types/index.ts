@@ -32,6 +32,7 @@ export type MapNode = {
 export enum FailReason {
   parseFail = "parser did not return node",
   findDefinitionFail = "could not find definition for call expression",
+  positionFail = "could not position function AST Node",
 }
 
 export type FindDefinitionFail = {
@@ -40,6 +41,15 @@ export type FindDefinitionFail = {
   incomingCalls: string[];
   callExpressionLocation: LineColumnFinder;
   failReason: FailReason.findDefinitionFail;
+  name: string;
+};
+
+export type PositionFail = {
+  id: string;
+  failure: true;
+  incomingCalls: string[];
+  failReason: FailReason.positionFail;
+  name: string;
 };
 
 export type ParseFail = {
@@ -48,9 +58,10 @@ export type ParseFail = {
   incomingCalls: string[];
   code: string;
   failReason: FailReason.parseFail;
+  name: string;
 };
 
-export type FailNode = FindDefinitionFail | ParseFail;
+export type FailNode = FindDefinitionFail | ParseFail | PositionFail;
 
 export type EntryNodeRawData = {
   targetFunctionRange: vscode.Range;

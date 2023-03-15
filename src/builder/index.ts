@@ -28,6 +28,12 @@ export default class Builder {
   entry: EntryNodeRawData;
   entryNodeId: string | undefined;
   view: View;
+  failNodeNames = {
+    [FailReason.findDefinitionFail]: "Find Definition Fail",
+    [FailReason.parseFail]: "Parse Fail",
+    [FailReason.positionFail]: "Postion Fail",
+  };
+
   constructor(entry: EntryNodeRawData, view: View) {
     this.nodeMap = new Map();
     this.entry = entry;
@@ -95,17 +101,49 @@ export default class Builder {
     if (!postitionedFunctionNode) {
       console.error("unable to find positionedFunctionNode");
       const id = objectHash.sha1({ failKey: targetFunctionCode });
-      const node = {
-        id,
+      // const node = {
+      //   id,
+      //   uri: targetFunctionUri,
+      //   range: targetFunctionRange,
+      //   code: targetFunctionCode,
+      //   incomingCalls: parentHash ? [parentHash] : [],
+      //   outgoingCalls: [],
+      //   name: "Not found",
+      // };
+
+      const failNode = this._buildFailureNode({
         uri: targetFunctionUri,
         range: targetFunctionRange,
         code: targetFunctionCode,
-        incomingCalls: parentHash ? [parentHash] : [],
-        outgoingCalls: [],
-        name: "Not found",
+        failReason: FailReason.positionFail,
+        parentId: parentHash,
+      });
+      if (parentHash && nodeMap.has(failNode.id)) {
+        nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
+        return;
+      }
+      nodeMap.set(id, failNode);
+      const { panelData } = await reader.prepForPageLoad(
+        failNode.id,
+        failNode.name
+      );
+
+      await view.loadPage(panelData);
+
+      //TODO: break into own function (see above)
+      const waitCondition = () => view.getLastSnapshotedNode() === failNode.id;
+      let snapshotAttempt = 0;
+      const failFunction = () => {
+        snapshotAttempt += 1;
+        console.log("[hf] conditionFailed", {
+          snapshotedNode: view.getLastSnapshotedNode(),
+          curNode: failNode.id,
+          snapshotAttempt,
+        });
       };
-      nodeMap.set(id, node);
-      return node;
+      await waitFor(waitCondition, failFunction);
+
+      return failNode;
     }
 
     const mapNode = this._buildNodeMapNodeFromTsMorphNode(
@@ -206,6 +244,7 @@ export default class Builder {
           3. I'd need to put more thought into whether letting the buildNodeMap calls execute in parallel will
             mess up the building of the nodeMap in some way 
     */
+    //TODO: break into own function (see above)
     const waitCondition = () => view.getLastSnapshotedNode() === mapNode.id;
     let snapshotAttempt = 0;
     const failFunction = () => {
@@ -317,7 +356,14 @@ export default class Builder {
           callExpressionLocation: LineColumnFinder;
           parentId: string | undefined;
         }
-  ) {
+      | {
+          failReason: FailReason.positionFail;
+          uri: vscode.Uri;
+          range: vscode.Range;
+          parentId: string | undefined;
+          code: string;
+        }
+  ): FailNode {
     const { parentId, ...rest } = args;
     const id =
       args.failReason === FailReason.parseFail
@@ -329,6 +375,7 @@ export default class Builder {
       id,
       failure: true as true,
       incomingCalls: parentId ? [parentId] : [],
+      name: this.failNodeNames[args.failReason],
     };
   }
 }
