@@ -111,8 +111,8 @@ export default class ReaderVSCode extends Reader {
     return {
       panelData: {
         uri: this.targetFunctionUri,
-        start: targetFunctionRange.start.line,
-        end: targetFunctionRange.end.line,
+        start: targetFunctionRange.start.line + 1,
+        end: targetFunctionRange.end.line + 1,
         nodeId: nodeId,
         functionName,
         range: targetFunctionRange,

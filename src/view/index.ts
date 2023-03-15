@@ -4,7 +4,7 @@ import type { PageData } from "types/index";
 import { readFile, PathLike } from "fs";
 
 import { placeholders, MESSAGES } from "src/constants/index";
-import { MemberExpression } from "ts-morph";
+import { waitFor } from "src/utils/index";
 
 export default class View {
   panel: vscode.WebviewPanel;
@@ -88,5 +88,24 @@ export default class View {
 
   private _generateInternalUri(extensionPath: string, value: string) {
     return vscode.Uri.file(join(extensionPath, "resources", value));
+  }
+
+  /*
+    I could incorperate this into the loadPage method but I think there will be instances where I want to allow
+    unblocked work to happen between initiating the page load for the current node and moving on to build the next node
+  */
+  public async waitForNodeSnapshot(nodeId: string) {
+    let attemptWaitForSnapshot = 0;
+    const successCondition = () => this.getLastSnapshotedNode() === nodeId;
+    const onFail = () => {
+      attemptWaitForSnapshot += 1;
+      console.log("[hf] waitForNodeSnapshot fail", {
+        lastSnapshotedNode: this.getLastSnapshotedNode(),
+        curNode: nodeId,
+        attemptWaitForSnapshot,
+      });
+    };
+
+    await waitFor(successCondition, onFail);
   }
 }

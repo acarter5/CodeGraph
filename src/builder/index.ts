@@ -85,6 +85,8 @@ export default class Builder {
         );
 
         await view.loadPage(panelData);
+        await view.waitForNodeSnapshot(failNode.id);
+
         nodeMap.set(failNode.id, failNode);
       }
       return failNode;
@@ -101,15 +103,6 @@ export default class Builder {
     if (!postitionedFunctionNode) {
       console.error("unable to find positionedFunctionNode");
       const id = objectHash.sha1({ failKey: targetFunctionCode });
-      // const node = {
-      //   id,
-      //   uri: targetFunctionUri,
-      //   range: targetFunctionRange,
-      //   code: targetFunctionCode,
-      //   incomingCalls: parentHash ? [parentHash] : [],
-      //   outgoingCalls: [],
-      //   name: "Not found",
-      // };
 
       const failNode = this._buildFailureNode({
         uri: targetFunctionUri,
@@ -118,8 +111,8 @@ export default class Builder {
         failReason: FailReason.positionFail,
         parentId: parentHash,
       });
-      if (parentHash && nodeMap.has(failNode.id)) {
-        nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
+      if (nodeMap.has(failNode.id)) {
+        parentHash && nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
         return;
       }
       nodeMap.set(id, failNode);
@@ -129,19 +122,7 @@ export default class Builder {
       );
 
       await view.loadPage(panelData);
-
-      //TODO: break into own function (see above)
-      const waitCondition = () => view.getLastSnapshotedNode() === failNode.id;
-      let snapshotAttempt = 0;
-      const failFunction = () => {
-        snapshotAttempt += 1;
-        console.log("[hf] conditionFailed", {
-          snapshotedNode: view.getLastSnapshotedNode(),
-          curNode: failNode.id,
-          snapshotAttempt,
-        });
-      };
-      await waitFor(waitCondition, failFunction);
+      await view.waitForNodeSnapshot(failNode.id);
 
       return failNode;
     }
@@ -235,6 +216,7 @@ export default class Builder {
           })
     );
 
+    await view.waitForNodeSnapshot(mapNode.id);
     /*
       It'd probably be faster (and cleaner) to allow the below returned promises from recursive calls to
       buildNodeMap to resolve in parallel. I could forego taking snapshots until the nodeMap is built and 
@@ -244,18 +226,6 @@ export default class Builder {
           3. I'd need to put more thought into whether letting the buildNodeMap calls execute in parallel will
             mess up the building of the nodeMap in some way 
     */
-    //TODO: break into own function (see above)
-    const waitCondition = () => view.getLastSnapshotedNode() === mapNode.id;
-    let snapshotAttempt = 0;
-    const failFunction = () => {
-      snapshotAttempt += 1;
-      console.log("[hf] conditionFailed", {
-        snapshotedNode: view.getLastSnapshotedNode(),
-        curNode: mapNode.id,
-        snapshotAttempt,
-      });
-    };
-    await waitFor(waitCondition, failFunction);
 
     const childNodes: (MapNode | FailNode | null)[] = [];
 
