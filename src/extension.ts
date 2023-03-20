@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import Builder from "./builder/index";
+import { NodeMap } from "./types";
 import View from "./view/index";
 
 const {
@@ -42,17 +43,18 @@ export function activate(context: vscode.ExtensionContext) {
         throw Error("target Range for function not found");
       }
 
-      const view = new View(context);
+      const nodeMap: NodeMap = new Map();
+
+      const view = new View(context, nodeMap);
 
       const builder = new Builder(
         {
           targetFunctionRange,
           targetFunctionUri,
         },
-        view
+        view,
+        nodeMap
       );
-
-      const { nodeMap } = builder;
 
       const entryGraphNode = await builder.buildNodeMap(undefined);
 

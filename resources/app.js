@@ -17,7 +17,8 @@
   const contentNode = document.getElementById("content");
   const containerNode = document.getElementById("container");
 
-  const { code, uri, range } = window.__data__;
+  const { code, uri, range, dirName, imageFileName, outputDir } =
+    window.__data__;
 
   //   node.innerText = code;
 
@@ -104,7 +105,7 @@
     const linesNode = document.getElementById("lines");
     const titleNode = document.getElementById("title");
 
-    const { start, end, autoCopy, nodeId } = window.__data__;
+    const { start, end, nodeId } = window.__data__;
 
     // titleNode.innerHTML = fileName
     titleNode.innerHTML = "fileName";
@@ -120,21 +121,47 @@
 
     footer.style.display = "flex";
 
-    setTimeout(() => {
+    setTimeout(async () => {
+      const pngData = await domtoimage.toPng(contentNode, {
+        bgColor: "transparent",
+        scale: 3,
+      });
+      const img = pngData.slice(pngData.indexOf(",") + 1);
+      console.log("[hf] in app.js", { pngData, img });
+
       vscode.postMessage({
         type: "snapshotTaken",
         data: {
           snapshotedNode: nodeId,
+          img,
         },
       });
-    }, 200);
-
-    // if (autoCopy) {
-    //   setTimeout(() => copyImage(), 200);
-    // } else {
-    //   vscode.postMessage({ type: "end", data: {} });
-    // }
+    }, 500);
   });
+
+  // document.addEventListener("DOMContentLoaded", async function (event) {
+  //   console.log("[hf] DOMContentLoaded CB fired");
+  //   const data = await domtoimage.toPng(contentNode, {
+  //     bgColor: "transparent",
+  //     scale: 3,
+  //   });
+
+  //   const img = data.slice(data.indexOf(",") + 1);
+  //   console.log("[hf] DOMContentLoaded CB", { data, img });
+
+  //   const uri = setTimeout(() => {
+  //     vscode.postMessage({
+  //       type: "snapshotTaken",
+  //       data: {
+  //         snapshotedNode: nodeId,
+  //         img,
+  //         dirName,
+  //         imageFileName,
+  //         outputDir,
+  //       },
+  //     });
+  //   }, 200);
+  // });
 
   setTimeout(() => {
     document.execCommand("paste");

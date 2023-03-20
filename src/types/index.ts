@@ -50,6 +50,9 @@ export type PositionFail = {
   incomingCalls: string[];
   failReason: FailReason.positionFail;
   name: string;
+  uri: vscode.Uri;
+  range: vscode.Range;
+  code: string;
 };
 
 export type ParseFail = {
@@ -57,6 +60,8 @@ export type ParseFail = {
   failure: true;
   incomingCalls: string[];
   code: string;
+  uri: vscode.Uri;
+  range: vscode.Range;
   failReason: FailReason.parseFail;
   name: string;
 };

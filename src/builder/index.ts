@@ -34,8 +34,8 @@ export default class Builder {
     [FailReason.positionFail]: "Postion Fail",
   };
 
-  constructor(entry: EntryNodeRawData, view: View) {
-    this.nodeMap = new Map();
+  constructor(entry: EntryNodeRawData, view: View, nodeMap: NodeMap) {
+    this.nodeMap = nodeMap;
     this.entry = entry;
     this.view = view;
   }
@@ -81,15 +81,16 @@ export default class Builder {
       if (nodeMap.has(failNode.id)) {
         parentHash && nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
       } else {
-        const { panelData } = await reader.prepForPageLoad(
-          failNode.id,
-          "Function parse fail"
-        );
+        await reader.prepForPageLoad();
 
-        await view.loadPage(panelData);
-        await view.waitForNodeSnapshot(failNode.id);
-
+        if (isEntry) {
+          this.entryNodeId = failNode.id;
+          view.registerEntryNode(failNode);
+        }
         nodeMap.set(failNode.id, failNode);
+
+        await view.loadPage(failNode.id);
+        await view.waitForNodeSnapshot(failNode.id);
       }
       return failNode;
     }
@@ -118,12 +119,14 @@ export default class Builder {
         return nodeMap.get(failNode.id) as FailNode;
       }
       nodeMap.set(id, failNode);
-      const { panelData } = await reader.prepForPageLoad(
-        failNode.id,
-        failNode.name
-      );
+      await reader.prepForPageLoad();
 
-      await view.loadPage(panelData);
+      if (isEntry) {
+        this.entryNodeId = failNode.id;
+        view.registerEntryNode(failNode);
+      }
+
+      await view.loadPage(failNode.id);
       await view.waitForNodeSnapshot(failNode.id);
 
       return failNode;
@@ -143,18 +146,15 @@ export default class Builder {
       return existingNode;
     }
 
-    const { panelData } = await reader.prepForPageLoad(
-      mapNode.id,
-      mapNode.name
-    );
-
-    await view.loadPage(panelData);
+    await reader.prepForPageLoad();
 
     if (isEntry) {
+      view.registerEntryNode(mapNode);
       this.entryNodeId = mapNode.id;
     }
-
     nodeMap.set(mapNode.id, mapNode);
+
+    await view.loadPage(mapNode.id);
 
     let callDefinitionLocations = (await Promise.all(
       callExpressionLocations.map((lineColumnFinder) => {
@@ -237,6 +237,9 @@ export default class Builder {
         if ("failure" in locOrFail) {
           if (!nodeMap.has(locOrFail.id)) {
             nodeMap.set(locOrFail.id, locOrFail);
+          } else {
+            locOrFail = nodeMap.get(locOrFail.id) as FindDefinitionFail;
+            locOrFail.incomingCalls.push(mapNode.id);
           }
           childNodes[idx] = locOrFail;
         } else if (locOrFail instanceof vscode.Location) {

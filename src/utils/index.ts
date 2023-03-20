@@ -1,3 +1,11 @@
+import {
+  FailReason,
+  ParseFail,
+  PositionFail,
+  MapNode,
+  FindDefinitionFail,
+  FailNode,
+} from "types/index";
 import * as vscode from "vscode";
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -125,3 +133,23 @@ export function waitFor(conditionFunction, failFunction) {
 
   return new Promise(poll);
 }
+
+export const isParseFailNode = (
+  node: FailNode | MapNode
+): node is ParseFail => {
+  return (node as ParseFail).failReason === FailReason.parseFail;
+};
+
+export const isPositionFailNode = (
+  node: FailNode | MapNode
+): node is PositionFail => {
+  return (node as PositionFail).failReason === FailReason.positionFail;
+};
+
+export const isFindDefinitionFailNode = (
+  node: FailNode | MapNode
+): node is FindDefinitionFail => {
+  return (
+    (node as FindDefinitionFail).failReason === FailReason.findDefinitionFail
+  );
+};

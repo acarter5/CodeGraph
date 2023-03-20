@@ -1,16 +1,31 @@
-import { resolve, join } from "path";
+import { resolve, join, basename } from "path";
 import * as vscode from "vscode";
-import type { PageData } from "types/index";
-import { readFile, PathLike } from "fs";
+import type { FailNode, MapNode, NodeMap, PageData } from "types/index";
+import { readFile, PathLike, writeFile } from "fs";
 
 import { placeholders, MESSAGES } from "src/constants/index";
-import { waitFor } from "src/utils/index";
+import {
+  isFindDefinitionFailNode,
+  isParseFailNode,
+  isPositionFailNode,
+  waitFor,
+} from "src/utils/index";
 
 export default class View {
   panel: vscode.WebviewPanel;
   context: vscode.ExtensionContext;
   lastSnapshotedNode: string | null;
-  constructor(context: vscode.ExtensionContext) {
+  nodeMap: NodeMap;
+  /* It feels a little janky to store the entry node here but this is the only class that persists throughout the buildNode process */
+  entryNode: undefined | MapNode | FailNode;
+  curNodeData:
+    | {
+        functionName: string;
+        uri: vscode.Uri;
+        id: string;
+      }
+    | undefined;
+  constructor(context: vscode.ExtensionContext, nodeMap: NodeMap) {
     this.context = context;
     this.panel = vscode.window.createWebviewPanel(
       "codegraph-tab",
@@ -25,23 +40,98 @@ export default class View {
       }
     );
 
+    this.nodeMap = nodeMap;
+
     this.lastSnapshotedNode = null;
 
     this.panel.webview.onDidReceiveMessage(async ({ type, data, message }) => {
-      console.log("[hf] in panel callBack", {
-        prevSnapshotedNode: this.lastSnapshotedNode,
-        newSnapshotedNode: data.snapshotedNode,
-        this: this,
-        type,
-        data,
-      });
+      // console.log("[hf] in panel callBack", {
+      //   prevSnapshotedNode: this.lastSnapshotedNode,
+      //   newSnapshotedNode: data.snapshotedNode,
+      //   this: this,
+      //   type,
+      //   data,
+      // });
       if ((type = MESSAGES.snapshotTaken)) {
-        this.lastSnapshotedNode = data.snapshotedNode;
+        console.log("[hf] in receive message", {
+          dataFromMessage: data,
+          curNodeData: this.curNodeData,
+        });
+        const { snapshotedNode, img } = data;
+
+        //todo: make this configureable in settings
+        const testDir = "/Users/adamcarter/lattice/test";
+        // const wsRootDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        // const codeGraphDir = "CodeGraph";
+
+        // const outputDir = wsRootDir && path.join(wsRootDir, codeGraphDir);
+
+        // const imageFileName = `${functionName} - ${this.targetFunctionUri.path} - ${nodeId}`;
+
+        // console.log("[hf]", { wsRootDir, codeGraphDir, outputDir, imageFileName });
+
+        const newImgPath = join(testDir, snapshotedNode);
+
+        console.log("[hf]", { newImgPath });
+        await writeFile(
+          newImgPath + ".png",
+          Buffer.from(img, "base64"),
+          (err) => {
+            if (!err) {
+              console.log("[hf] save succeeded");
+            } else {
+              console.error("[hf] save failed", { err });
+            }
+          }
+        );
+
+        this.lastSnapshotedNode = snapshotedNode;
       }
     });
   }
 
-  public async loadPage(panelData: PageData) {
+  public async loadPage(nodeId: string) {
+    if (!this.entryNode) {
+      throw Error("view: load page: entry node not registered");
+    }
+
+    const curNode = this.nodeMap.get(nodeId);
+
+    let range: vscode.Range;
+    let functionName: string;
+    let uri: vscode.Uri;
+
+    if (!curNode) {
+      throw Error("view: load page: nodeId not found in node map");
+    } else if (isFindDefinitionFailNode(curNode)) {
+      throw Error(
+        "view: load page: cannot load findDefinitionFail node into page"
+      );
+    } else {
+      range = curNode.range;
+      functionName = curNode.name || "Anonymous";
+      uri = curNode.uri;
+    }
+
+    this.curNodeData = {
+      functionName,
+      uri,
+      id: nodeId,
+    };
+
+    const panelData = {
+      start: range.start.line + 1,
+      end: range.end.line + 1,
+      nodeId,
+    };
+
+    // const entryNodeUri =
+    //   "uri" in this.entryNode ? this.entryNode.uri : undefined;
+
+    // const dirName = `${this.entryNode.name} - ${
+    //   entryNodeUri ? basename(entryNodeUri.path) : ""
+    // } - ${this.entryNode.id}`;
+
     const contentPath = resolve(
       this.context.extensionPath,
       "resources",
@@ -107,5 +197,9 @@ export default class View {
     };
 
     await waitFor(successCondition, onFail);
+  }
+
+  public registerEntryNode(entryNode: MapNode | FailNode) {
+    this.entryNode = entryNode;
   }
 }

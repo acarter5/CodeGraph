@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import Reader from "./index";
+import * as path from "path";
 
 const { workspace: ws, window } = vscode;
 
@@ -86,7 +87,7 @@ export default class ReaderVSCode extends Reader {
     return { targetDocument, targetFunctionCode, targetFileCode };
   }
 
-  public async prepForPageLoad(nodeId: string, functionName: string) {
+  public async prepForPageLoad() {
     const { targetDocument, targetFunctionRange } = this;
 
     if (!targetDocument) {
@@ -108,15 +109,17 @@ export default class ReaderVSCode extends Reader {
       "editor.action.clipboardCopyWithSyntaxHighlightingAction"
     );
 
-    return {
-      panelData: {
-        uri: this.targetFunctionUri,
-        start: targetFunctionRange.start.line + 1,
-        end: targetFunctionRange.end.line + 1,
-        nodeId: nodeId,
-        functionName,
-        range: targetFunctionRange,
-      },
-    };
+    // return {
+    //   panelData: {
+    //     uri: this.targetFunctionUri,
+    //     start: targetFunctionRange.start.line + 1,
+    //     end: targetFunctionRange.end.line + 1,
+    //     nodeId: nodeId,
+    //     functionName,
+    //     range: targetFunctionRange,
+    //     outputDir,
+    //     imageFileName,
+    //   },
+    // };
   }
 }
