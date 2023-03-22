@@ -1,15 +1,10 @@
 import { resolve, join, basename } from "path";
 import * as vscode from "vscode";
 import type { FailNode, MapNode, NodeMap, PageData } from "types/index";
-import { readFile, PathLike, writeFile } from "fs";
+import { readFile, PathLike, writeFile, existsSync, mkdirSync } from "fs";
 
 import { placeholders, MESSAGES } from "src/constants/index";
-import {
-  isFindDefinitionFailNode,
-  isParseFailNode,
-  isPositionFailNode,
-  waitFor,
-} from "src/utils/index";
+import { isFindDefinitionFailNode, waitFor } from "src/utils/index";
 
 export default class View {
   panel: vscode.WebviewPanel;
@@ -25,6 +20,9 @@ export default class View {
         id: string;
       }
     | undefined;
+  //todo: make this configureable in settings
+  codeGraphOutputDir = "/Users/adamcarter/lattice/test";
+  graphDir: string | undefined;
   constructor(context: vscode.ExtensionContext, nodeMap: NodeMap) {
     this.context = context;
     this.panel = vscode.window.createWebviewPanel(
@@ -57,20 +55,36 @@ export default class View {
           dataFromMessage: data,
           curNodeData: this.curNodeData,
         });
+
+        if (!this.codeGraphOutputDir || !this.graphDir) {
+          throw Error("output directory not found");
+        }
+
         const { snapshotedNode, img } = data;
 
-        //todo: make this configureable in settings
-        const testDir = "/Users/adamcarter/lattice/test";
         // const wsRootDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         // const codeGraphDir = "CodeGraph";
 
-        // const outputDir = wsRootDir && path.join(wsRootDir, codeGraphDir);
+        const escapedTargetFunctionUri = this.curNodeData?.uri.path
+          .split("/")
+          .slice(-3)
+          .join("-")
+          .replace(".", "%");
+
+        const imageFileName = `${this.curNodeData?.functionName} ${escapedTargetFunctionUri} ${this.curNodeData?.id}`;
+
+        console.log("[hf]", { imageFileName });
+        // const codeGraphOutputDir = wsRootDir && path.join(wsRootDir, codeGraphDir);
 
         // const imageFileName = `${functionName} - ${this.targetFunctionUri.path} - ${nodeId}`;
 
-        // console.log("[hf]", { wsRootDir, codeGraphDir, outputDir, imageFileName });
+        // console.log("[hf]", { wsRootDir, codeGraphDir, codeGraphOutputDir, imageFileName });
 
-        const newImgPath = join(testDir, snapshotedNode);
+        const newImgPath = join(
+          this.codeGraphOutputDir,
+          this.graphDir,
+          imageFileName
+        );
 
         console.log("[hf]", { newImgPath });
         await writeFile(
@@ -184,14 +198,16 @@ export default class View {
     I could incorperate this into the loadPage method but I think there will be instances where I want to allow
     unblocked work to happen between initiating the page load for the current node and moving on to build the next node
   */
-  public async waitForNodeSnapshot(nodeId: string) {
+  public async waitForNodeSnapshot() {
     let attemptWaitForSnapshot = 0;
-    const successCondition = () => this.getLastSnapshotedNode() === nodeId;
+    const successCondition = () =>
+      !!this.curNodeData?.id &&
+      this.getLastSnapshotedNode() === this.curNodeData?.id;
     const onFail = () => {
       attemptWaitForSnapshot += 1;
       console.log("[hf] waitForNodeSnapshot fail", {
         lastSnapshotedNode: this.getLastSnapshotedNode(),
-        curNode: nodeId,
+        curNode: this.curNodeData?.id,
         attemptWaitForSnapshot,
       });
     };
@@ -201,5 +217,27 @@ export default class View {
 
   public registerEntryNode(entryNode: MapNode | FailNode) {
     this.entryNode = entryNode;
+    if (isFindDefinitionFailNode(entryNode)) {
+      throw Error(
+        "cannot create a graph from the selected function because its defintion was not found"
+      );
+    }
+    if (!existsSync(this.codeGraphOutputDir)) {
+      throw Error("selected output directory does not exist in filesystem");
+    }
+
+    const escapedUri = entryNode.uri.path
+      .split("/")
+      .slice(-3)
+      .join("-")
+      .replace(".", "%");
+
+    this.graphDir = `${entryNode.name} ${escapedUri} ${entryNode.id}`;
+
+    const fullDirPath = join(this.codeGraphOutputDir, this.graphDir);
+
+    if (!existsSync(fullDirPath)) {
+      mkdirSync(fullDirPath);
+    }
   }
 }

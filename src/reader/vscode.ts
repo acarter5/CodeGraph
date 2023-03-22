@@ -108,18 +108,5 @@ export default class ReaderVSCode extends Reader {
     await vscode.commands.executeCommand(
       "editor.action.clipboardCopyWithSyntaxHighlightingAction"
     );
-
-    // return {
-    //   panelData: {
-    //     uri: this.targetFunctionUri,
-    //     start: targetFunctionRange.start.line + 1,
-    //     end: targetFunctionRange.end.line + 1,
-    //     nodeId: nodeId,
-    //     functionName,
-    //     range: targetFunctionRange,
-    //     outputDir,
-    //     imageFileName,
-    //   },
-    // };
   }
 }

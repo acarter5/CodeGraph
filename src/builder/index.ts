@@ -90,7 +90,7 @@ export default class Builder {
         nodeMap.set(failNode.id, failNode);
 
         await view.loadPage(failNode.id);
-        await view.waitForNodeSnapshot(failNode.id);
+        await view.waitForNodeSnapshot();
       }
       return failNode;
     }
@@ -127,7 +127,7 @@ export default class Builder {
       }
 
       await view.loadPage(failNode.id);
-      await view.waitForNodeSnapshot(failNode.id);
+      await view.waitForNodeSnapshot();
 
       return failNode;
     }
@@ -218,7 +218,7 @@ export default class Builder {
           })
     );
 
-    await view.waitForNodeSnapshot(mapNode.id);
+    await view.waitForNodeSnapshot();
     /*
       It'd probably be faster (and cleaner) to allow the below returned promises from recursive calls to
       buildNodeMap to resolve in parallel. I could forego taking snapshots until the nodeMap is built and 
