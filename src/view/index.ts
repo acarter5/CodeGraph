@@ -1,6 +1,12 @@
 import { resolve, join, basename } from "path";
 import * as vscode from "vscode";
-import type { FailNode, MapNode, NodeMap, PageData } from "types/index";
+import type {
+  FailNode,
+  MapNode,
+  NodeMap,
+  PageData,
+  WebviewMessage,
+} from "types/index";
 import { readFile, PathLike, writeFile, existsSync, mkdirSync } from "fs";
 
 import { placeholders, MESSAGES } from "src/constants/index";
@@ -42,17 +48,10 @@ export default class View {
 
     this.lastSnapshotedNode = null;
 
-    this.panel.webview.onDidReceiveMessage(async ({ type, data, message }) => {
-      // console.log("[hf] in panel callBack", {
-      //   prevSnapshotedNode: this.lastSnapshotedNode,
-      //   newSnapshotedNode: data.snapshotedNode,
-      //   this: this,
-      //   type,
-      //   data,
-      // });
-      if ((type = MESSAGES.snapshotTaken)) {
+    this.panel.webview.onDidReceiveMessage(async (message: WebviewMessage) => {
+      if (message.type === MESSAGES.snapshotTaken) {
         console.log("[hf] in receive message", {
-          dataFromMessage: data,
+          dataFromMessage: message.data,
           curNodeData: this.curNodeData,
         });
 
@@ -60,7 +59,7 @@ export default class View {
           throw Error("output directory not found");
         }
 
-        const { snapshotedNode, img } = data;
+        const { snapshotedNode, img } = message.data;
 
         // const wsRootDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         // const codeGraphDir = "CodeGraph";

@@ -8,6 +8,8 @@ import {
   ArrowFunction,
 } from "ts-morph";
 
+import { MESSAGES } from "src/constants/index";
+
 // @ts-expect-error
 import type { LineColumnFinder } from "line-column";
 import { Map } from "typescript";
@@ -90,3 +92,14 @@ export type PageData = {
   end: number;
   range: vscode.Range;
 };
+
+// Messages posted from the webview (resources/app.js) back to the extension.
+export type WebviewMessage =
+  | {
+      type: MESSAGES.snapshotTaken;
+      data: { snapshotedNode: string; img: string };
+    }
+  | { type: "copied" }
+  | { type: "download"; data: string }
+  | { type: "tweet" }
+  | { type: "beer" };
