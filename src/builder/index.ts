@@ -288,10 +288,13 @@ export default class Builder {
 
     const node = nodeMap.get(nodeId);
 
-    const graphNode = { ...node };
+    const graphNode = { ...node } as GraphNode & {
+      id?: string;
+      outgoingCalls?: string[];
+    };
     graphNode.children =
-      graphNode?.outgoingCalls?.map((nodeId: string) =>
-        this.buildNodeGraph(nodeId, [...ancestors, graphNode.id])
+      graphNode.outgoingCalls?.map((childId: string) =>
+        this.buildNodeGraph(childId, [...ancestors, graphNode.id as string])
       ) || [];
 
     return graphNode;

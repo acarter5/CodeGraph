@@ -6,6 +6,12 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
 
 ---
 
+## 🚨 Build broken
+
+- [x] 🔴 **#0 — Project does not compile (36 errors)** ✅ FIXED
+  Both `tsc -p .` and `npm run compile` (webpack/ts-loader) failed on `master`. Now all three pass: `tsc --noEmit` exit 0, webpack exit 0 (2 harmless ts-morph "Critical dependency" warnings), `eslint` exit 0 (2 pre-existing warnings remain: `Jsonifified` naming → part of #6; `val == null` idiom in `utils/tsMorph.ts`).
+  Done via: installed `@types/object-hash`; deleted dead files (#12); typed `waitFor`/`looksLike`/`isPrimitive` + removed dead matchers & `verifyCallDefinitionLocations` (#11 + part of #13); `_getStructure` guard helper in `scanner/tsMorph.ts`; `GraphNode.children` typed recursively; `view/index.ts:169` `value.toString()`.
+
 ## Confirmed bugs
 
 - [x] 🔴 **#1 — Message handler uses `=` instead of `===`**
@@ -50,16 +56,16 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
   `src/view/index.ts:90` — `await writeFile(...)` on callback-style `fs.writeFile` doesn't wait (returns `undefined`).
   Fix: use `fs/promises`.
 
-- [ ] 🟠 **#11 — Strict `noImplicitAny` likely violated**
-  `src/utils/index.ts:17,32` and `src/utils/tsMorph.ts:21` — untyped params (`looksLike(a, b)`, `isPrimitive(val)`) under `strict: true`. Confirm `npm run compile` / `compile-tests` is actually clean; if it passes, type-checking may be suppressed somewhere.
+- [x] 🟠 **#11 — Strict `noImplicitAny` violated** ✅ FIXED (with #0)
+  Confirmed it was failing the build. Typed `waitFor` (`utils/index.ts`) and `looksLike`/`isPrimitive` (`utils/tsMorph.ts`); deleted the unused untyped matchers in `utils/index.ts`.
 
 ## Cleanup / cruft
 
-- [ ] 🧹 **#12 — Delete dead files**
-  `src/parser.ts` (duplicate of `parser/tsMorph.ts`), `src/parser/tsNative.ts` (empty stub), `src/parser/tsBabel.ts` + `src/scanner/tsBabel.ts` (abandoned spikes), commented-out `extract` block in `src/reader/index.ts:19-57`.
+- [x] 🧹 **#12 — Delete dead files** ✅ DONE (with #0)
+  Deleted `src/parser.ts`, `src/parser/tsNative.ts`, `src/parser/tsBabel.ts`, `src/scanner/tsBabel.ts`. Still TODO: commented-out `extract` block in `src/reader/index.ts:19-57`.
 
-- [ ] 🧹 **#13 — Remove duplicate matchers**
-  `looksLike` / `looksLikeSkipPosition` / `looksLikeSkipPositionTsMorph` in `src/utils/index.ts` vs the live `looksLike` in `src/utils/tsMorph.ts`. Keep only what's used.
+- [x] 🧹 **#13 — Remove duplicate matchers** ✅ DONE (with #0)
+  Removed the unused `looksLike` / `looksLikeSkipPosition` / `looksLikeSkipPositionTsMorph` (and `verifyCallDefinitionLocations`) from `src/utils/index.ts`. The live `looksLike` in `src/utils/tsMorph.ts` is now the only one.
 
 - [ ] 🧹 **#14 — Strip debug noise**
   `[hf]` `console.log`s and `debugger` statements throughout (`utils/index.ts:119`, `view/index.ts`, `builder/index.ts`, …) and the `"CommandRun!"` toast at `extension.ts:17`.

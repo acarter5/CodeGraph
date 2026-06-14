@@ -82,7 +82,7 @@ export type NodeRawData = EntryNodeRawData & {
 export type NodeMap = ts.ESMap<string, MapNode | FailNode>;
 
 export type GraphNode = (MapNode | FailNode | { recursionId: string }) & {
-  children: (MapNode | FailNode)[];
+  children: GraphNode[];
 };
 
 export type PageData = {

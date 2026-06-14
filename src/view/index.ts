@@ -166,7 +166,7 @@ export default class View {
     });
 
     replacements.forEach(({ key, value }) => {
-      html = html.replace(key, value);
+      html = html.replace(key, value.toString());
     });
 
     html = html.replace(/__CSP_SOURCE__/g, this.panel.webview.cspSource);
