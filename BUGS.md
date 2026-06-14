@@ -18,13 +18,11 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
   `src/view/index.ts:53` — `if ((type = MESSAGES.snapshotTaken))` assigns instead of compares, so every webview message (`copied`/`download`/`tweet`/`beer`) is treated as a snapshot.
   Fix: `if (type === MESSAGES.snapshotTaken)`.
 
-- [ ] 🔴 **#2 — `activeTextEditor` captured once at module load**
-  `src/extension.ts:7-8` destructures `const { window: { activeTextEditor } } = vscode;` (a getter), then uses it at `:19-20`. Value is snapshotted at `activate()` time and goes stale when the user switches editors.
-  Fix: read `vscode.window.activeTextEditor` inside the command callback.
+- [x] 🔴 **#2 — `activeTextEditor` captured once at module load** ✅ FIXED
+  Removed `activeTextEditor` from the top-level `vscode` destructure; the command callback now reads `const { activeTextEditor } = vscode.window;` at invocation time, so it always reflects the editor the user has focused when they run the command.
 
-- [ ] 🔴 **#3 — Hardcoded macOS output path** ⚙️
-  `src/view/index.ts:24` — `codeGraphOutputDir = "/Users/adamcarter/lattice/test"`. `registerEntryNode` throws if it doesn't exist, breaking the feature on every other machine.
-  Fix: make it a VS Code setting (there's already a `//todo`) or workspace-relative.
+- [x] 🔴 **#3 — Hardcoded macOS output path** ✅ FIXED
+  Added a `codegraph.outputDirectory` setting (contributed in `package.json`). `View._resolveOutputDir()` resolves it: absolute → as-is, relative → against workspace root, empty → `.codegraph` in the workspace root (throws only when there's no setting and no open workspace). `registerEntryNode` now creates the dir with `mkdirSync(..., { recursive: true })` instead of throwing when it's missing.
 
 - [ ] 🔴 **#4 — positionFail node stored under the wrong key**
   `src/builder/index.ts:108,117-121` — dedup check uses `failNode.id` but `nodeMap.set(id, failNode)` stores under the unrelated `id = objectHash.sha1({ failKey: targetFunctionCode })`. Keys never match → no dedup + dangling key.
@@ -52,9 +50,8 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
   `src/view/index.ts:201-216` + `src/utils/index.ts:125-135`. `waitFor` has no timeout/max-attempts; a failed snapshot polls every 400 ms indefinitely and stalls the whole build.
   Fix: add a max-attempt/timeout bail.
 
-- [ ] 🟠 **#10 — Snapshot write not actually awaited**
-  `src/view/index.ts:90` — `await writeFile(...)` on callback-style `fs.writeFile` doesn't wait (returns `undefined`).
-  Fix: use `fs/promises`.
+- [x] 🟠 **#10 — Snapshot write not actually awaited** ✅ FIXED
+  Removed the no-op `await` while fixing the `Buffer`/TS-version issue at `src/view/index.ts:89`. Now `writeFile(path, img, "base64", cb)` — base64 string written directly, no `Buffer`, no misleading `await`.
 
 - [x] 🟠 **#11 — Strict `noImplicitAny` violated** ✅ FIXED (with #0)
   Confirmed it was failing the build. Typed `waitFor` (`utils/index.ts`) and `looksLike`/`isPrimitive` (`utils/tsMorph.ts`); deleted the unused untyped matchers in `utils/index.ts`.
