@@ -4,7 +4,6 @@ import { NodeMap } from "./types";
 import View from "./view/index";
 
 const {
-  window: { activeTextEditor },
   commands,
   // eslint-disable-next-line @typescript-eslint/naming-convention
   Location,
@@ -15,6 +14,10 @@ export function activate(context: vscode.ExtensionContext) {
     "codegraph.makeGraph",
     async () => {
       vscode.window.showInformationMessage("CommandRun!");
+
+      // Read the active editor at invocation time, not module-load time —
+      // otherwise the value is snapshotted at activate() and goes stale.
+      const { activeTextEditor } = vscode.window;
 
       const currentSelection = activeTextEditor?.selection;
       const targetFunctionUri = activeTextEditor?.document.uri;
