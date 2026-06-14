@@ -1,4 +1,4 @@
-import { resolve, join, basename } from "path";
+import { resolve, join, basename, isAbsolute } from "path";
 import * as vscode from "vscode";
 import type {
   FailNode,
@@ -7,7 +7,7 @@ import type {
   PageData,
   WebviewMessage,
 } from "types/index";
-import { readFile, PathLike, writeFile, existsSync, mkdirSync } from "fs";
+import { readFile, PathLike, writeFile, mkdirSync } from "fs";
 
 import { placeholders, MESSAGES } from "src/constants/index";
 import { isFindDefinitionFailNode, waitFor } from "src/utils/index";
@@ -26,8 +26,8 @@ export default class View {
         id: string;
       }
     | undefined;
-  //todo: make this configureable in settings
-  codeGraphOutputDir = "/Users/adamcarter/lattice/test";
+  // Resolved from the `codegraph.outputDirectory` setting in registerEntryNode.
+  codeGraphOutputDir: string | undefined;
   graphDir: string | undefined;
   constructor(context: vscode.ExtensionContext, nodeMap: NodeMap) {
     this.context = context;
@@ -86,17 +86,13 @@ export default class View {
         );
 
         console.log("[hf]", { newImgPath });
-        await writeFile(
-          newImgPath + ".png",
-          Buffer.from(img, "base64"),
-          (err) => {
-            if (!err) {
-              console.log("[hf] save succeeded");
-            } else {
-              console.error("[hf] save failed", { err });
-            }
+        writeFile(newImgPath + ".png", img, "base64", (err) => {
+          if (!err) {
+            console.log("[hf] save succeeded");
+          } else {
+            console.error("[hf] save failed", { err });
           }
-        );
+        });
 
         this.lastSnapshotedNode = snapshotedNode;
       }
@@ -221,9 +217,9 @@ export default class View {
         "cannot create a graph from the selected function because its defintion was not found"
       );
     }
-    if (!existsSync(this.codeGraphOutputDir)) {
-      throw Error("selected output directory does not exist in filesystem");
-    }
+
+    this.codeGraphOutputDir = this._resolveOutputDir();
+    mkdirSync(this.codeGraphOutputDir, { recursive: true });
 
     const escapedUri = entryNode.uri.path
       .split("/")
@@ -234,9 +230,39 @@ export default class View {
     this.graphDir = `${entryNode.name} ${escapedUri} ${entryNode.id}`;
 
     const fullDirPath = join(this.codeGraphOutputDir, this.graphDir);
+    mkdirSync(fullDirPath, { recursive: true });
+  }
 
-    if (!existsSync(fullDirPath)) {
-      mkdirSync(fullDirPath);
+  /*
+    Resolves the directory snapshots are written to:
+      - `codegraph.outputDirectory` setting, if set (absolute used as-is,
+        relative resolved against the workspace root)
+      - otherwise `.codegraph` in the workspace root
+      - throws if no setting and no open workspace folder
+  */
+  private _resolveOutputDir(): string {
+    const configured = vscode.workspace
+      .getConfiguration("codegraph")
+      .get<string>("outputDirectory")
+      ?.trim();
+
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    if (configured) {
+      if (isAbsolute(configured)) {
+        return configured;
+      }
+      return workspaceRoot
+        ? join(workspaceRoot, configured)
+        : resolve(configured);
     }
+
+    if (workspaceRoot) {
+      return join(workspaceRoot, ".codegraph");
+    }
+
+    throw Error(
+      "CodeGraph: no output directory available. Open a workspace folder or set the `codegraph.outputDirectory` setting to an absolute path."
+    );
   }
 }
