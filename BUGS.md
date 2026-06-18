@@ -24,13 +24,11 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
 - [x] 🔴 **#3 — Hardcoded macOS output path** ✅ FIXED
   Added a `codegraph.outputDirectory` setting (contributed in `package.json`). `View._resolveOutputDir()` resolves it: absolute → as-is, relative → against workspace root, empty → `.codegraph` in the workspace root (throws only when there's no setting and no open workspace). `registerEntryNode` now creates the dir with `mkdirSync(..., { recursive: true })` instead of throwing when it's missing.
 
-- [ ] 🔴 **#4 — positionFail node stored under the wrong key**
-  `src/builder/index.ts:108,117-121` — dedup check uses `failNode.id` but `nodeMap.set(id, failNode)` stores under the unrelated `id = objectHash.sha1({ failKey: targetFunctionCode })`. Keys never match → no dedup + dangling key.
-  Fix: use `failNode.id` consistently; delete the stale `id`.
+- [x] 🔴 **#4 — positionFail node stored under the wrong key** ✅ FIXED
+  Deleted the stale `id = objectHash.sha1({ failKey: targetFunctionCode })`; the node is now stored with `nodeMap.set(failNode.id, failNode)`. This also fixed a latent crash: `view.loadPage(failNode.id)` did `nodeMap.get(failNode.id)`, which previously missed (node was under the wrong key) and threw — so the positionFail path now actually snapshots instead of erroring.
 
-- [ ] 🔴 **#5 — parseFail returns the wrong node on a cache hit**
-  `src/builder/index.ts:81-95` — on `nodeMap.has`, pushes the parent but `return failNode` (the new one) instead of the existing accumulated node. Inconsistent with positionFail branch (`:119` returns `nodeMap.get(...)`).
-  Fix: return the existing node from the map.
+- [x] 🔴 **#5 — parseFail returns the wrong node on a cache hit** ✅ FIXED
+  The cache-hit branch now early-returns the existing node (`const existingNode = nodeMap.get(failNode.id) as FailNode; … return existingNode;`), matching the positionFail branch. Restructured to an early return rather than fall-through so the new `failNode` can no longer leak out on a hit.
 
 - [ ] 🔴 **#6 — Graph output is computed then discarded** ⚙️
   `src/extension.ts:68-71` — `nodeGraph` (the actual deliverable) is only `console.log`-ed; `Jsonifified` is unused. Nothing is persisted or sent to the front-end.

@@ -79,19 +79,22 @@ export default class Builder {
         parentId: parentHash,
       });
       if (nodeMap.has(failNode.id)) {
-        parentHash && nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
-      } else {
-        await reader.prepForPageLoad();
-
-        if (isEntry) {
-          this.entryNodeId = failNode.id;
-          view.registerEntryNode(failNode);
-        }
-        nodeMap.set(failNode.id, failNode);
-
-        await view.loadPage(failNode.id);
-        await view.waitForNodeSnapshot();
+        const existingNode = nodeMap.get(failNode.id) as FailNode;
+        parentHash && existingNode.incomingCalls.push(parentHash);
+        return existingNode;
       }
+
+      await reader.prepForPageLoad();
+
+      if (isEntry) {
+        this.entryNodeId = failNode.id;
+        view.registerEntryNode(failNode);
+      }
+      nodeMap.set(failNode.id, failNode);
+
+      await view.loadPage(failNode.id);
+      await view.waitForNodeSnapshot();
+
       return failNode;
     }
 
@@ -105,7 +108,6 @@ export default class Builder {
 
     if (!postitionedFunctionNode) {
       console.error("unable to find positionedFunctionNode");
-      const id = objectHash.sha1({ failKey: targetFunctionCode });
 
       const failNode = this._buildFailureNode({
         uri: targetFunctionUri,
@@ -118,7 +120,7 @@ export default class Builder {
         parentHash && nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
         return nodeMap.get(failNode.id) as FailNode;
       }
-      nodeMap.set(id, failNode);
+      nodeMap.set(failNode.id, failNode);
       await reader.prepForPageLoad();
 
       if (isEntry) {
