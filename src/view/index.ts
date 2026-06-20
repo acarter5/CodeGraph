@@ -291,7 +291,18 @@ export default class View {
       });
     };
 
-    await waitFor(successCondition, onFail);
+    // A snapshot that never arrives (webview error, crash, etc.) used to poll
+    // forever and stall the entire serial recursion. `waitFor` now bails after
+    // ~30s; swallow that timeout so the build continues — the node just won't
+    // have an image (the manifest records `image: null` for it).
+    try {
+      await waitFor(successCondition, onFail);
+    } catch (err) {
+      console.error(
+        "view: waitForNodeSnapshot: snapshot timed out, continuing without it",
+        { curNode: this.curNodeData?.id, err }
+      );
+    }
   }
 
   public registerEntryNode(entryNode: MapNode | FailNode) {

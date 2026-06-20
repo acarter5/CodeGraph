@@ -168,9 +168,13 @@ export default class Builder {
 
     let callDefinitionLocations = (await Promise.all(
       callExpressionLocations.map((lineColumnFinder) => {
+        // `line-column` is 1-based for both line and col; `vscode.Position` is
+        // 0-based for both, so subtract 1 from each. Passing `col` unconverted
+        // landed the cursor one char into the identifier, which is why
+        // definition resolution was flaky and leaned on the retry loop below.
         const position = new vscode.Position(
           lineColumnFinder.line - 1,
-          lineColumnFinder.col
+          lineColumnFinder.col - 1
         );
         return vscode.commands.executeCommand(
           "vscode.executeDefinitionProvider",
@@ -198,7 +202,7 @@ export default class Builder {
                 targetFunctionUri,
                 new vscode.Position(
                   callExpressionLocations[idx].line - 1,
-                  callExpressionLocations[idx].col
+                  callExpressionLocations[idx].col - 1
                 )
               );
         })
@@ -443,11 +447,32 @@ export default class Builder {
     targetFunctionCode: string,
     parentHash: string | undefined
   ) {
-    const astNodeHash = objectHash.sha1(node.compilerNode);
     const name = getTsMorphNodeFunctionName(node);
+
+    // Identity = the definition's source location (uri + range), which is what
+    // makes two references to the same function dedup to one NodeMap entry.
+    // We hash that rather than `node.compilerNode` (BUGS.md #8): a raw TS
+    // compiler node carries circular `.parent` back-pointers and a large
+    // subtree, so hashing it is slow and risks blowing up on the cycles.
+    // Flatten the vscode.Range to plain numbers so object-hash sees stable
+    // values, not getter-backed objects.
+    const astNodeHash = objectHash.sha1({
+      uri: targetFunctionUri.toString(),
+      range: {
+        start: {
+          line: targetFunctionRange.start.line,
+          character: targetFunctionRange.start.character,
+        },
+        end: {
+          line: targetFunctionRange.end.line,
+          character: targetFunctionRange.end.character,
+        },
+      },
+      name,
+    });
+
     const graphNode = {
       id: astNodeHash,
-      // astNode: postitionedFunctionNode.compilerNode,
       uri: targetFunctionUri,
       range: targetFunctionRange,
       code: targetFunctionCode,

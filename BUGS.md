@@ -38,17 +38,15 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
 
 ## Likely bugs / needs verification
 
-- [ ] 🟠 **#7 — Column off-by-one into the definition provider**
-  `src/scanner/tsMorph.ts:54` → `src/builder/index.ts:161-163`. `line-column` returns 1-based `line` and `col`; code does `line - 1` but passes `col` straight into a 0-based `vscode.Position`. Cursor lands one char into the identifier — likely why definition lookups are flaky and need the 5× retry at `:178`.
-  Fix: try `col - 1`; verify retries drop.
+- [x] 🟠 **#7 — Column off-by-one into the definition provider** ✅ FIXED
+  `line-column` (in `scanner/tsMorph.ts`) returns 1-based `line` AND `col`; `vscode.Position` is 0-based for both. The builder converted `line - 1` but passed `col` straight, landing the cursor one char into the callee identifier. Fixed both call sites in `builder/index.ts` (initial resolution + the retry loop) to `col - 1`.
+  **Side effects:** should make definition resolution more reliable (fewer fallbacks into the 5× retry / fewer spurious `FindDefinitionFail` nodes), and it makes the call-column trustworthy — a prerequisite for populating `edges[].callSite` in #6 (still deferred until FE per that entry). Worth eyeballing a real run to confirm retries actually drop.
 
-- [ ] 🟠 **#8 — `object-hash` on a raw compiler node**
-  `src/builder/index.ts:307` — `objectHash.sha1(node.compilerNode)`. TS compiler nodes have circular `.parent` back-pointers and are large → circular-ref risk + slow.
-  Fix: hash a stable identity (uri + range + name, or text + position).
+- [x] 🟠 **#8 — `object-hash` on a raw compiler node** ✅ FIXED
+  `_buildNodeMapNodeFromTsMorphNode` now hashes a stable source identity — `objectHash.sha1({ uri, range (flattened to plain numbers), name })` — instead of `node.compilerNode`. The uri + definition range is exactly what makes two references to the same function dedup to one NodeMap entry, so dedup semantics are preserved while dropping the circular-`.parent`/large-subtree hashing risk and cost. (The `node` param is still used for `getTsMorphNodeFunctionName`.)
 
-- [ ] 🟠 **#9 — `waitForNodeSnapshot` can hang forever**
-  `src/view/index.ts:201-216` + `src/utils/index.ts:125-135`. `waitFor` has no timeout/max-attempts; a failed snapshot polls every 400 ms indefinitely and stalls the whole build.
-  Fix: add a max-attempt/timeout bail.
+- [x] 🟠 **#9 — `waitForNodeSnapshot` can hang forever** ✅ FIXED
+  `waitFor` (`src/utils/index.ts`) now takes `{ intervalMs, maxAttempts }` (default 400ms × 75 ≈ 30s) and **rejects** once the attempts are exhausted instead of polling forever; pass `maxAttempts: Infinity` to opt out. `View.waitForNodeSnapshot` wraps the call in try/catch: on timeout it logs a warning and resolves so the serial recursion continues — the affected node just gets no image (`image: null` in the manifest) rather than stalling the entire build.
 
 - [x] 🟠 **#10 — Snapshot write not actually awaited** ✅ FIXED
   Removed the no-op `await` while fixing the `Buffer`/TS-version issue at `src/view/index.ts:89`. Now `writeFile(path, img, "base64", cb)` — base64 string written directly, no `Buffer`, no misleading `await`.
@@ -94,7 +92,8 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
   **Trade-off:** snapshots use Prism's `prism-tomorrow` theme instead of the user's vscode theme. Consistent across machines (a feature, not a bug), but no longer follows the editor's colors.
   **Packaging note:** the webview references `node_modules/prismjs/...` for the Prism core, components, and theme. `.vscodeignore` excludes `node_modules/**`, so these files won't ship in a `.vsix`. Vendoring (or `CopyWebpackPlugin`-ing them into `dist/` or `resources/prism/`) is needed before packaging. → tracked as **#21**.
 
-- [ ] 🔴 **#21 — Webview assets load from `node_modules`; won't ship in a `.vsix`** ⏭️ PRIORITY
+- [x] 🔴 **#21 — Webview assets load from `node_modules`; won't ship in a `.vsix`** ✅ FIXED
+  Added `copy-webpack-plugin` (v11) to `webpack.config.js`, mirroring the 6 files the webview actually loads (Prism core + typescript/jsx/tsx components + the `prism-tomorrow` theme + dom-to-image) into `dist/vendor/` at build. Repointed the placeholders in `src/constants/index.ts` from `../node_modules/...` to `../dist/vendor/...` (they resolve against `resources/`, and `dist/` ships while `node_modules/` is `.vscodeignore`d). Copied only the referenced files rather than the whole `prismjs` package (~600 grammars) — adding a language for M3 means one copy pattern + one placeholder. Verified with `vsce ls`: **6 `dist/vendor` files packaged, 0 from `node_modules`.** Still worth a real install-from-`.vsix` smoke test of the snapshot render before the first publish.
   `resources/index.html` references the Prism core/components/theme under `node_modules/prismjs/...` and `node_modules/dom-to-image-more/dist/dom-to-image-more.min.js`. These are plain string URLs in the HTML (not `import`s), so webpack never bundles them, and `.vscodeignore` excludes `node_modules/**` from the package. Result: the snapshot webview works under F5 (the dev host can reach `node_modules`) but every asset 404s the moment the extension is installed from a `.vsix` — i.e. the entire snapshot pipeline silently breaks for real users.
   Surfaced by #20 (the Prism rewrite introduced the `prismjs` dependency) and overlaps the same `.vscodeignore` gotcha in `CLAUDE.md`. Confirmed by inspection; not yet observed because nothing has been `vsce package`d yet.
   **Fix (decide one):**
