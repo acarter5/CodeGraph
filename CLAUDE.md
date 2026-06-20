@@ -76,18 +76,20 @@ Output is a **`NodeMap`** (`Map<id, MapNode | FailNode>`, id = `object-hash` sha
 
 ### The snapshot mechanism (non-obvious)
 
-Snapshots are syntax-highlighted **images of code**, produced through a roundtrip, not by rendering text directly:
+Snapshots are syntax-highlighted **images of code**, produced entirely inside the webview:
 
-1. `Reader.prepForPageLoad` selects the function range in a real editor and runs `editor.action.clipboardCopyWithSyntaxHighlightingAction` — putting highlighted HTML on the clipboard.
-2. `View.loadPage` loads `resources/index.html` into a webview; `resources/app.js` triggers a paste, builds the DOM, and uses `dom-to-image-more` to render a PNG.
-3. The webview posts the base64 PNG back (`MESSAGES.snapshotTaken`); `View` writes it to disk.
+1. `View.loadPage` stuffs the node's `code` + `language` (inferred from the file extension by `View._inferLanguage`) into `window.__data__` via the `__DATA_PLACEHOLDER__` substitution in `resources/index.html`, then reassigns `webview.html`.
+2. `resources/app.js` reads `window.__data__`, calls `Prism.highlight(code, grammar, language)` to render the highlighted DOM, then `dom-to-image-more` captures it as a PNG.
+3. The webview posts the base64 PNG back (`MESSAGES.snapshotTaken`); `View` writes it to disk and records width/height/scale into `snapshotMeta` for the manifest.
 4. `View.waitForNodeSnapshot` polls (`utils.waitFor`) until the webview confirms the current node was captured before the loop moves on — this serializes the recursion (see the long comment in `builder/index.ts` for why it isn't parallelized).
+
+**There used to be a clipboard-based pipeline** (`Reader.prepForPageLoad` ran `editor.action.clipboardCopyWithSyntaxHighlightingAction`, the webview pasted, dom-to-image captured). It was ripped out — see `BUGS.md` #20 for why. If you're tempted to bring it back, read that entry first.
 
 ## Code map
 
 - `src/extension.ts` — activation + command registration
 - `src/builder/` — graph construction (`buildNodeMap`, `buildNodeGraph`, fail-node creation)
-- `src/reader/` — `Reader` base + `ReaderVSCode` (document I/O + clipboard-highlight prep)
+- `src/reader/` — `Reader` base + `ReaderVSCode` (document I/O; the clipboard-highlight prep is gone — see BUGS.md #20)
 - `src/parser/` — `CodeGraphParser` base + `tsMorph` impl (`tsBabel`/`tsNative` are abandoned spikes)
 - `src/scanner/` — `Scanner` base + `tsMorph` impl (positions the node, finds call locations)
 - `src/view/` — `View`: webview lifecycle + snapshot capture + PNG file writing
@@ -106,9 +108,10 @@ Snapshots are syntax-highlighted **images of code**, produced through a roundtri
 
 ## Gotchas / rough edges
 
-- **Hardcoded output dir:** `View.codeGraphOutputDir = "/Users/adamcarter/lattice/test"` (`src/view/index.ts`). This is the original author's machine path and the marked `//todo` is to make it a setting. The extension throws if the dir doesn't exist — make this configurable (or point it at the workspace) before relying on snapshot output.
-- **Bug in the message handler:** `view/index.ts` uses `if ((type = MESSAGES.snapshotTaken))` — an assignment, not a comparison (`===`). Every webview message currently falls into the snapshot branch.
-- **Debug noise:** many `console.log("[hf] ...")` and stray `debugger` statements remain throughout. Treat `[hf]` logs as scratch instrumentation, not intentional logging.
-- **Definition resolution is flaky:** `executeDefinitionProvider` misses some definitions (e.g. methods passed as arguments) even after the 5 retries; those intentionally become `FindDefinitionFail` nodes rather than hard failures.
-- **Tests are a stub:** `src/test/suite/extension.test.ts` is the sample placeholder. Despite the acceptance criterion, there is no real coverage yet.
+- **Webview scripts MUST be `defer`-ed.** Every external `<script>` in `resources/index.html` (`prism.js`, the Prism language components, `dom-to-image-more`, `app.js`) has `defer` so it runs after the `<body>` is parsed. Without it, `app.js` executes from the `<head>` and `document.querySelector("#copy")` returns `null`, killing the IIFE before the first `render()` call. The inline `window.__data__ = JSON.parse(...)` script is *not* deferred — it only sets a global, which is safe during parsing.
+- **The `placeholders.forEach` loop in `View.loadPage` must use a function replacement.** It substitutes the JSON-encoded source code into the HTML. `String.replace(searchString, replacementString)` treats `$&`, `` $` ``, `$'`, `$<n>`, and `$$` as special patterns in the replacement, so any source code containing those (or whose JSON-encoded form happens to contain them) gets silently corrupted. The fix `html.replace(key, () => value.toString())` disables that interpretation; don't revert it.
+- **`.vscodeignore` excludes `node_modules/**` but the webview loads from there.** `resources/index.html` references `../node_modules/prismjs/prism.js`, the Prism component files, the Prism theme CSS, and `../node_modules/dom-to-image-more/dist/dom-to-image-more.min.js`. Webpack doesn't bundle these (they're string references inside HTML, not `import`s). Works in F5/dev, will 404 inside a `.vsix`. Either vendor those files into `resources/` or add `copy-webpack-plugin` to mirror them into `dist/` at build time. Decide before the first `vsce package` run.
+- **Diagnostic logs are still in the code.** `[hf]` (host side) and `[hf:webview]` (webview side, routed back via the `webviewLog` message branch in `View`'s `onDidReceiveMessage`) instrument the snapshot pipeline end-to-end. Useful for the next regression; gate them behind a config flag or strip before shipping — see BUGS.md #14.
+- **Definition resolution is flaky.** `executeDefinitionProvider` misses some definitions (e.g. methods passed as arguments) even after the 5 retries in `builder/index.ts`; those intentionally become `FindDefinitionFail` nodes rather than hard failures.
+- **Tests are a stub.** `src/test/suite/extension.test.ts` is the sample placeholder. Despite the acceptance criterion, there is no real coverage yet.
 - **Typos in identifiers** (`postitioned`, `defintion`, `Postion`, `Jsonifified`) appear across the code and types — match the existing spelling when referencing them rather than "fixing" in passing, since they're load-bearing names.

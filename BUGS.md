@@ -30,9 +30,11 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
 - [x] 🔴 **#5 — parseFail returns the wrong node on a cache hit** ✅ FIXED
   The cache-hit branch now early-returns the existing node (`const existingNode = nodeMap.get(failNode.id) as FailNode; … return existingNode;`), matching the positionFail branch. Restructured to an early return rather than fall-through so the new `failNode` can no longer leak out on a hit.
 
-- [ ] 🔴 **#6 — Graph output is computed then discarded** ⚙️
-  `src/extension.ts:68-71` — `nodeGraph` (the actual deliverable) is only `console.log`-ed; `Jsonifified` is unused. Nothing is persisted or sent to the front-end.
-  Fix: decide the output target (write to disk / postMessage to webview / file in workspace) and emit it.
+- [x] 🔴 **#6 — Graph output is computed then discarded** ✅ FIXED
+  Now emits a `graph.json` manifest into the graph's output folder (alongside the PNGs), consumed by the FigJam renderer via the Figma REST API (Node process → relative file paths, no base64).
+  **Shape:** two-layer — `definitions[]` (unique functions, the dedup/color-key layer, each with `image{file,width,height,scale}` + `source{uri,range}` + `kind`) and `placements[]` (one box per `(definition, level)`; same definition → several placements sharing `definitionId` so the front-end can color-code duplicates), plus `edges[]` (placement→placement, with `recursion:true` back-edges for cycles). Per the M0 rule: a definition may appear at several levels but once per level.
+  Implemented across: `resources/app.js` (capture PNG `width/height/scale`), `WebviewMessage` + new manifest types in `src/types/index.ts`, `View` records `snapshotMeta` + `writeManifest()`, `Builder.serializeGraph()` (level-expansion + cycle break), and `extension.ts` writes it (also deleted the dead `Jsonifified` line → closed that lint warning).
+  **Deferred (until FE work begins):** `edges[].callSite` (precise call-line anchor) is in the type but not yet populated. The `ManifestPosition` + definition `ManifestRange` get you the *logical* location inside a snapshot (`rowInSnapshot = callSite.line - definition.range.start.line`), but **not** the pixel location in the PNG — that needs render geometry the manifest doesn't carry (line height, char width, padding, title-bar + gutter offsets) and breaks on tabs. Decision: don't reconstruct pixels from font metrics; have the webview measure each call-site token's `getBoundingClientRect()` at capture time (× `scale`) and emit a `callSiteRect`. Deferred deliberately until the front-end exists so we design the anchor interface against the renderer's real needs. Also blocked on the off-by-one (#7), which must be fixed before either the logical or measured offset can be trusted. Renderer falls back to node-edge anchoring until then.
 
 ## Likely bugs / needs verification
 
@@ -81,3 +83,21 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
   Fix: add `tsconfig-paths/register` or use relative imports in tested code.
 
 - [ ] 🧹 **#19 — README is the unedited extension template.**
+
+## Confirmed bugs (continued)
+
+- [x] 🔴 **#20 — Every snapshot rendered the entry's source** ✅ FIXED
+  When run on `cluster.js` in the SneakerBot repo, the 4 PNGs in the graph folder were all identical — every one showed `PuppeteerCluster.build`, regardless of which callee the file was named for.
+  **Root cause:** The whole snapshot pipeline relied on the system clipboard. `prepForPageLoad` ran `editor.action.clipboardCopyWithSyntaxHighlightingAction` to put syntax-highlighted HTML on the clipboard, then the webview's `app.js` ran `execCommand("paste")` to render it. That command targets the focused editor — and once the webview was visible, the OS-level focus lived in the webview's iframe (vscode's `activeTextEditor` said otherwise, but the clipboard never updated). Net effect: every non-entry copy command no-op'd, the clipboard kept holding the entry's HTML, and every PNG rendered the entry.
+  Multiple incremental fixes (handshake messages, atomic `showTextDocument({selection})`, focus-poll + retry, plain-text fallback) each closed one symptom but none made the highlighted copy reliable across all nodes.
+  **Final fix:** Dropped the clipboard pipeline entirely. Added `prismjs` as a dependency. The webview now reads `code` + `language` directly out of `window.__data__` (the host writes them when it sets `panelData` in `view.loadPage`) and uses `Prism.highlight(code, grammar, language)` to render. `prepForPageLoad`, the `webviewReady`/`takeSnapshot` handshake, and the paste handler are gone. The webview also no longer needs OS focus to render, so reentry on a stale focus state is impossible by construction.
+  **Trade-off:** snapshots use Prism's `prism-tomorrow` theme instead of the user's vscode theme. Consistent across machines (a feature, not a bug), but no longer follows the editor's colors.
+  **Packaging note:** the webview references `node_modules/prismjs/...` for the Prism core, components, and theme. `.vscodeignore` excludes `node_modules/**`, so these files won't ship in a `.vsix`. Vendoring (or `CopyWebpackPlugin`-ing them into `dist/` or `resources/prism/`) is needed before packaging. → tracked as **#21**.
+
+- [ ] 🔴 **#21 — Webview assets load from `node_modules`; won't ship in a `.vsix`** ⏭️ PRIORITY
+  `resources/index.html` references the Prism core/components/theme under `node_modules/prismjs/...` and `node_modules/dom-to-image-more/dist/dom-to-image-more.min.js`. These are plain string URLs in the HTML (not `import`s), so webpack never bundles them, and `.vscodeignore` excludes `node_modules/**` from the package. Result: the snapshot webview works under F5 (the dev host can reach `node_modules`) but every asset 404s the moment the extension is installed from a `.vsix` — i.e. the entire snapshot pipeline silently breaks for real users.
+  Surfaced by #20 (the Prism rewrite introduced the `prismjs` dependency) and overlaps the same `.vscodeignore` gotcha in `CLAUDE.md`. Confirmed by inspection; not yet observed because nothing has been `vsce package`d yet.
+  **Fix (decide one):**
+    1. **Vendor** the needed files into `resources/` (e.g. `resources/prism/`, `resources/vendor/`), update the `index.html` references + `localResourceRoots`, and let them ship as part of `resources/**`. Simple, explicit, no build step.
+    2. **`copy-webpack-plugin`** to mirror the specific files into `dist/` (or `resources/`) at build time and reference them there. Keeps `node_modules` as the source of truth, versions stay in sync on `npm i`.
+  Recommend **option 2** (build stays the source of truth; no stale vendored copies to maintain), but option 1 is fine if we want to avoid adding a webpack plugin. Either way, verify with an actual `vsce package` + install-from-vsix before closing.

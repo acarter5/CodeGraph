@@ -4,13 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <link rel="stylesheet" href="__PRISM_CSS_PATH__" />
     <link rel="stylesheet" href="__CSS_BASE_PATH__" />
     <title>Snipped</title>
-    <script src="__LIB_BASE_PATH__" async></script>
+    <!--
+      All external scripts use `defer` so:
+        1. They execute in document order, after the body is parsed (app.js
+           reaches `document.getElementById("output")` and the rest of the
+           DOM, which would all be `null` if the script ran while the head
+           was still being parsed).
+        2. Prism (core + components) finishes loading before app.js runs
+           Prism.highlight().
+      The inline `window.__data__` script cannot use `defer`, but it only
+      sets a global — that's safe to run during parsing.
+    -->
+    <script src="__LIB_BASE_PATH__" defer></script>
+    <script src="__PRISM_JS_PATH__" defer></script>
+    <script src="__PRISM_TS_PATH__" defer></script>
+    <script src="__PRISM_JSX_PATH__" defer></script>
+    <script src="__PRISM_TSX_PATH__" defer></script>
     <script charSet="UTF-8">
       window.__data__ = JSON.parse(__DATA_PLACEHOLDER__);
     </script>
-    <script src="__JS_BASE_PATH__" type="module"></script>
+    <script src="__JS_BASE_PATH__" defer></script>
   </head>
   <body>
     <div class="header">
