@@ -13,21 +13,47 @@ export function ExcludeNullish<T>(v: T | null | undefined): v is T {
   return v != null;
 }
 
+/*
+  Polls `conditionFunction` every `intervalMs` until it returns true, calling
+  `failFunction` on each miss. Bails by rejecting once `maxAttempts` misses have
+  elapsed (default ~30s at 400ms) so a snapshot that never arrives can't stall
+  the whole recursion forever (BUGS.md #9). Pass `maxAttempts: Infinity` to
+  restore the old unbounded behavior.
+*/
 export function waitFor(
   conditionFunction: () => boolean,
-  failFunction: () => void
+  failFunction: () => void,
+  { intervalMs = 400, maxAttempts = 75 }: WaitForOptions = {}
 ): Promise<void> {
-  const poll = (resolve: () => void) => {
-    if (conditionFunction()) {
-      resolve();
-    } else {
+  return new Promise((resolve, reject) => {
+    let misses = 0;
+    const poll = () => {
+      if (conditionFunction()) {
+        resolve();
+        return;
+      }
+      misses += 1;
+      if (misses >= maxAttempts) {
+        reject(
+          new Error(
+            `waitFor: condition not met after ${misses} attempts (~${
+              misses * intervalMs
+            }ms)`
+          )
+        );
+        return;
+      }
       failFunction();
-      setTimeout(() => poll(resolve), 400);
-    }
-  };
-
-  return new Promise(poll);
+      setTimeout(poll, intervalMs);
+    };
+    poll();
+  });
 }
+
+export type WaitForOptions = {
+  intervalMs?: number;
+  maxAttempts?: number;
+};
 
 export const isParseFailNode = (
   node: FailNode | MapNode

@@ -46,9 +46,8 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
   `src/builder/index.ts:307` — `objectHash.sha1(node.compilerNode)`. TS compiler nodes have circular `.parent` back-pointers and are large → circular-ref risk + slow.
   Fix: hash a stable identity (uri + range + name, or text + position).
 
-- [ ] 🟠 **#9 — `waitForNodeSnapshot` can hang forever**
-  `src/view/index.ts:201-216` + `src/utils/index.ts:125-135`. `waitFor` has no timeout/max-attempts; a failed snapshot polls every 400 ms indefinitely and stalls the whole build.
-  Fix: add a max-attempt/timeout bail.
+- [x] 🟠 **#9 — `waitForNodeSnapshot` can hang forever** ✅ FIXED
+  `waitFor` (`src/utils/index.ts`) now takes `{ intervalMs, maxAttempts }` (default 400ms × 75 ≈ 30s) and **rejects** once the attempts are exhausted instead of polling forever; pass `maxAttempts: Infinity` to opt out. `View.waitForNodeSnapshot` wraps the call in try/catch: on timeout it logs a warning and resolves so the serial recursion continues — the affected node just gets no image (`image: null` in the manifest) rather than stalling the entire build.
 
 - [x] 🟠 **#10 — Snapshot write not actually awaited** ✅ FIXED
   Removed the no-op `await` while fixing the `Buffer`/TS-version issue at `src/view/index.ts:89`. Now `writeFile(path, img, "base64", cb)` — base64 string written directly, no `Buffer`, no misleading `await`.
