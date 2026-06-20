@@ -17,7 +17,17 @@
         "command": "codegraph.makeGraph",
         "title": "Codegraph: Make a codegraph"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "CodeGraph",
+      "properties": {
+        "codegraph.outputDirectory": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Directory where CodeGraph writes snapshot PNGs. Absolute paths are used as-is; relative paths resolve against the workspace root. When empty, defaults to `.codegraph` in the workspace root."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -36,6 +46,7 @@
     "@types/line-column": "^1.0.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "16.x",
+    "@types/object-hash": "^3.0.6",
     "@types/vscode": "^1.75.0",
     "@typescript-eslint/eslint-plugin": "^5.53.0",
     "@typescript-eslint/parser": "^5.53.0",
@@ -61,6 +72,7 @@
     "dom-to-image-more": "^2.15.0",
     "line-column": "^1.0.2",
     "object-hash": "^3.0.0",
+    "prismjs": "^1.30.0",
     "save": "^2.9.0",
     "ts-morph": "^17.0.1"
   }

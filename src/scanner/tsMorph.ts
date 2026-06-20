@@ -62,13 +62,20 @@ export default class ScannerTsMorph extends Scanner {
     return tsMorphCalleeLocations;
   }
 
+  // Not every Node kind exposes getStructure (e.g. ArrowFunction), so guard it.
+  private _getStructure(node: any) {
+    return typeof node?.getStructure === "function"
+      ? node.getStructure()
+      : undefined;
+  }
+
   // TODO: clean this up
   private _findPositionedFunctionNode() {
     const { unpostitionedFunctionNode, fileNode } = this;
 
-    const unpostitionedFunctionNodeStructure =
-      unpostitionedFunctionNode.getStructure &&
-      unpostitionedFunctionNode.getStructure();
+    const unpostitionedFunctionNodeStructure = this._getStructure(
+      unpostitionedFunctionNode
+    );
 
     if (!unpostitionedFunctionNodeStructure) {
       throw Error("cannot get unpositioned node structure");
@@ -80,7 +87,8 @@ export default class ScannerTsMorph extends Scanner {
       if (
         fileNodeDescendant.getKind() === unpostitionedFunctionNode?.getKind()
       ) {
-        const fileNodeDescendantStructure = fileNodeDescendant.getStructure();
+        const fileNodeDescendantStructure =
+          this._getStructure(fileNodeDescendant);
         const isMatch = looksLike(
           fileNodeDescendantStructure,
           unpostitionedFunctionNodeStructure

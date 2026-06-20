@@ -1,5 +1,45 @@
 (function () {
+  // acquireVsCodeApi is a global the webview injects exactly once per page.
+  // Capture it first so the global error handlers below can use it to forward
+  // diagnostics back to the extension host — that's the only way we ever see
+  // a script error in the host console (the webview's own console lives in
+  // its own DevTools panel).
   const vscode = acquireVsCodeApi();
+
+  function hostLog(label, info) {
+    try {
+      vscode.postMessage({
+        type: "webviewLog",
+        data: { label, info },
+      });
+    } catch (_) {
+      /* ignore — best-effort logging */
+    }
+  }
+
+  window.addEventListener("error", (e) => {
+    hostLog("window.error", {
+      message: e.message,
+      filename: e.filename,
+      lineno: e.lineno,
+      colno: e.colno,
+      stack: e.error && e.error.stack,
+    });
+  });
+
+  window.addEventListener("unhandledrejection", (e) => {
+    hostLog("unhandledrejection", {
+      reason: String(e.reason),
+      stack: e.reason && e.reason.stack,
+    });
+  });
+
+  hostLog("script start", {
+    hasPrism: typeof window.Prism !== "undefined",
+    hasDomToImage: typeof window.domtoimage !== "undefined",
+    dataKeys: window.__data__ ? Object.keys(window.__data__) : null,
+  });
+
   const node = document.getElementById("output");
 
   const copyButton = document.querySelector("#copy");
@@ -17,10 +57,12 @@
   const contentNode = document.getElementById("content");
   const containerNode = document.getElementById("container");
 
-  const { code, uri, range, dirName, imageFileName, outputDir } =
-    window.__data__;
+  const { code, language, start, end, nodeId } = window.__data__;
 
-  //   node.innerText = code;
+  // Line height has to be applied identically to the rendered code AND to the
+  // line-number gutter so they line up vertically. 19px is the size vscode's
+  // copy command used to emit, kept here so the snapshots look the same.
+  const LINE_HEIGHT_PX = 19;
 
   function base64ToBlob(b64Data, contentType = "", sliceSize = 1024) {
     const byteCharacters = atob(b64Data);
@@ -42,11 +84,9 @@
   }
 
   async function copyImage(omitMessage) {
-    const { code, uri, range, start, end } = window.__data__;
-
     const url = await domtoimage.toPng(contentNode, {
       bgColor: "transparent",
-      scale: Math.min(4, Math.max(1, scale || 0)),
+      scale: 3,
     });
 
     const blob = base64ToBlob(url.slice(url.indexOf(",") + 1), "image/png");
@@ -93,77 +133,92 @@
     vscode.postMessage({ type: "beer" });
   }
 
-  document.addEventListener("paste", async (e) => {
-    const html =
-      e.clipboardData.getData("text/html") ||
-      e.clipboardData.getData("text/plain");
-    node.innerHTML = `<div id="code">${html}</div>`;
+  // Render the code with Prism, then capture the rendered DOM as PNG and ship
+  // it to the host. Replaces the old paste-the-clipboard pipeline — see
+  // BUGS.md #20 for why that pipeline had to go.
+  function render() {
+    if (!window.Prism) {
+      hostLog("render-error", { reason: "Prism global missing" });
+      throw new Error("Prism global missing");
+    }
+    const grammar =
+      window.Prism.languages[language] || window.Prism.languages.javascript;
+    const highlighted = window.Prism.highlight(code || "", grammar, language);
 
-    const codeNode = document.getElementById("code");
-    const lineHeight = codeNode.querySelector("div").style.lineHeight;
+    hostLog("render", {
+      nodeId,
+      language,
+      codeLen: (code || "").length,
+      grammarFound: !!window.Prism.languages[language],
+      highlightedLen: highlighted.length,
+    });
+
+    // Inline styles on the <pre> rather than relying on app.css so the
+    // resulting DOM is self-contained for dom-to-image's snapshot.
+    node.innerHTML = `<pre id="code" class="language-${language}" style="margin: 0; padding: 12px 16px; font-family: 'Cascadia Code', Menlo, Monaco, monospace; font-size: 13px; line-height: ${LINE_HEIGHT_PX}px; white-space: pre; background: #2d2d2d;"><code class="language-${language}">${highlighted}</code></pre>`;
 
     const linesNode = document.getElementById("lines");
     const titleNode = document.getElementById("title");
-
-    const { start, end, nodeId } = window.__data__;
-
-    // titleNode.innerHTML = fileName
     titleNode.innerHTML = "fileName";
 
+    // Match the code's line height exactly so the gutter stays aligned even
+    // if a future theme change shifts the code block's height.
     for (let i = start; i <= end + 1; i++) {
       const newNodeChild = document.createElement("span");
       newNodeChild.innerHTML = i;
-      newNodeChild.style.lineHeight = lineHeight;
+      newNodeChild.style.lineHeight = `${LINE_HEIGHT_PX}px`;
       linesNode.appendChild(newNodeChild);
     }
 
     containerNode.style.opacity = 1;
-
     footer.style.display = "flex";
+  }
 
-    setTimeout(async () => {
-      const pngData = await domtoimage.toPng(contentNode, {
-        bgColor: "transparent",
-        scale: 3,
-      });
-      const img = pngData.slice(pngData.indexOf(",") + 1);
-      console.log("[hf] in app.js", { pngData, img });
+  async function capture() {
+    const scale = 3;
+    const pngData = await domtoimage.toPng(contentNode, {
+      bgColor: "transparent",
+      scale,
+    });
+    const img = pngData.slice(pngData.indexOf(",") + 1);
 
-      vscode.postMessage({
-        type: "snapshotTaken",
-        data: {
-          snapshotedNode: nodeId,
-          img,
-        },
-      });
-    }, 500);
-  });
+    // Read the rendered PNG's true pixel dimensions so the manifest can size
+    // the image and anchor connectors when rendering into FigJam.
+    const { width, height } = await new Promise((res) => {
+      const image = new Image();
+      image.onload = () =>
+        res({ width: image.naturalWidth, height: image.naturalHeight });
+      image.src = pngData;
+    });
 
-  // document.addEventListener("DOMContentLoaded", async function (event) {
-  //   console.log("[hf] DOMContentLoaded CB fired");
-  //   const data = await domtoimage.toPng(contentNode, {
-  //     bgColor: "transparent",
-  //     scale: 3,
-  //   });
+    hostLog("snapshotTaken", { nodeId, width, height });
 
-  //   const img = data.slice(data.indexOf(",") + 1);
-  //   console.log("[hf] DOMContentLoaded CB", { data, img });
+    vscode.postMessage({
+      type: "snapshotTaken",
+      data: {
+        snapshotedNode: nodeId,
+        img,
+        width,
+        height,
+        scale,
+      },
+    });
+  }
 
-  //   const uri = setTimeout(() => {
-  //     vscode.postMessage({
-  //       type: "snapshotTaken",
-  //       data: {
-  //         snapshotedNode: nodeId,
-  //         img,
-  //         dirName,
-  //         imageFileName,
-  //         outputDir,
-  //       },
-  //     });
-  //   }, 200);
-  // });
-
-  setTimeout(() => {
-    document.execCommand("paste");
-  }, 200);
+  // Render synchronously, then capture on the next paint so styles + font
+  // metrics are committed before dom-to-image walks the tree. Wrap in
+  // try/catch so a thrown error makes it back to the host rather than
+  // disappearing into the webview-only console.
+  try {
+    render();
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        capture().catch((err) =>
+          hostLog("capture-error", { message: String(err), stack: err.stack })
+        );
+      })
+    );
+  } catch (err) {
+    hostLog("render-throw", { message: String(err), stack: err.stack });
+  }
 })();

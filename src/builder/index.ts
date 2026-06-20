@@ -13,6 +13,13 @@ import type {
   NodeRawData,
   LineColumnFinder,
   FailNode,
+  SnapshotMeta,
+  GraphManifest,
+  ManifestDefinition,
+  ManifestPlacement,
+  ManifestEdge,
+  ManifestNodeKind,
+  ManifestRange,
 } from "types/index";
 import {
   FailReason,
@@ -79,19 +86,23 @@ export default class Builder {
         parentId: parentHash,
       });
       if (nodeMap.has(failNode.id)) {
-        parentHash && nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
-      } else {
-        await reader.prepForPageLoad();
-
-        if (isEntry) {
-          this.entryNodeId = failNode.id;
-          view.registerEntryNode(failNode);
-        }
-        nodeMap.set(failNode.id, failNode);
-
-        await view.loadPage(failNode.id);
-        await view.waitForNodeSnapshot();
+        const existingNode = nodeMap.get(failNode.id) as FailNode;
+        parentHash && existingNode.incomingCalls.push(parentHash);
+        return existingNode;
       }
+
+      if (isEntry) {
+        this.entryNodeId = failNode.id;
+        view.registerEntryNode(failNode);
+      }
+      nodeMap.set(failNode.id, failNode);
+
+      // The webview renders directly from the panel data the host writes into
+      // window.__data__ (Prism does the highlighting client-side), so the
+      // sequence is just: load the page → wait for the snapshot to come back.
+      await view.loadPage(failNode.id);
+      await view.waitForNodeSnapshot();
+
       return failNode;
     }
 
@@ -105,7 +116,6 @@ export default class Builder {
 
     if (!postitionedFunctionNode) {
       console.error("unable to find positionedFunctionNode");
-      const id = objectHash.sha1({ failKey: targetFunctionCode });
 
       const failNode = this._buildFailureNode({
         uri: targetFunctionUri,
@@ -118,8 +128,7 @@ export default class Builder {
         parentHash && nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
         return nodeMap.get(failNode.id) as FailNode;
       }
-      nodeMap.set(id, failNode);
-      await reader.prepForPageLoad();
+      nodeMap.set(failNode.id, failNode);
 
       if (isEntry) {
         this.entryNodeId = failNode.id;
@@ -146,14 +155,15 @@ export default class Builder {
       return existingNode;
     }
 
-    await reader.prepForPageLoad();
-
     if (isEntry) {
       view.registerEntryNode(mapNode);
       this.entryNodeId = mapNode.id;
     }
     nodeMap.set(mapNode.id, mapNode);
 
+    // Load the snapshot page; the webview's app.js will Prism-highlight and
+    // capture asynchronously while we kick off the executeDefinitionProvider
+    // work in parallel below. We wait for the snapshot just before recursing.
     await view.loadPage(mapNode.id);
 
     let callDefinitionLocations = (await Promise.all(
@@ -288,13 +298,142 @@ export default class Builder {
 
     const node = nodeMap.get(nodeId);
 
-    const graphNode = { ...node };
+    const graphNode = { ...node } as GraphNode & {
+      id?: string;
+      outgoingCalls?: string[];
+    };
     graphNode.children =
-      graphNode?.outgoingCalls?.map((nodeId: string) =>
-        this.buildNodeGraph(nodeId, [...ancestors, graphNode.id])
+      graphNode.outgoingCalls?.map((childId: string) =>
+        this.buildNodeGraph(childId, [...ancestors, graphNode.id as string])
       ) || [];
 
     return graphNode;
+  }
+
+  /*
+    Serializes the built NodeMap into the graph.json manifest the FigJam
+    renderer consumes. The NodeMap is the single-instance definition layer;
+    here we expand it into per-level "placements" (one box per definition per
+    level) plus the connector edges between them. Repeated placements of the
+    same definition share `definitionId` so the renderer can color-code them.
+    Cycles are broken by pointing back to the ancestor's existing placement.
+  */
+  public serializeGraph(
+    snapshotMeta: Map<string, SnapshotMeta>
+  ): GraphManifest {
+    const { nodeMap, entryNodeId } = this;
+
+    if (!entryNodeId) {
+      throw Error("builder: serializeGraph: entry node not identified");
+    }
+    const entryNode = nodeMap.get(entryNodeId);
+    if (!entryNode) {
+      throw Error("builder: serializeGraph: entry node missing from node map");
+    }
+
+    // ---- definitions (dedup layer) ----
+    const definitions: ManifestDefinition[] = [];
+    nodeMap.forEach((node, id) => {
+      definitions.push({
+        id,
+        name: node.name || "Anonymous",
+        kind: this._manifestKind(node),
+        image: snapshotMeta.get(id) ?? null,
+        source: this._manifestSource(node),
+      });
+    });
+
+    // ---- placements + edges (expand per (definition, level)) ----
+    const placements: ManifestPlacement[] = [];
+    const edges: ManifestEdge[] = [];
+    const seenPlacements = new Set<string>();
+    const seenEdges = new Set<string>();
+
+    const addEdge = (edge: ManifestEdge) => {
+      const key = `${edge.from}->${edge.to}->${edge.recursion ? "r" : ""}`;
+      if (seenEdges.has(key)) {
+        return;
+      }
+      seenEdges.add(key);
+      edges.push(edge);
+    };
+
+    const visit = (
+      nodeId: string,
+      level: number,
+      ancestors: Map<string, number>
+    ) => {
+      const placementId = `${nodeId}@${level}`;
+      if (seenPlacements.has(placementId)) {
+        return;
+      }
+      seenPlacements.add(placementId);
+      placements.push({ id: placementId, definitionId: nodeId, level });
+
+      const node = nodeMap.get(nodeId);
+      const outgoing =
+        node && "outgoingCalls" in node ? node.outgoingCalls : [];
+
+      const nextAncestors = new Map(ancestors).set(nodeId, level);
+
+      for (const childId of outgoing) {
+        const ancestorLevel = nextAncestors.get(childId);
+        if (ancestorLevel !== undefined) {
+          // Cycle: point backward to the ancestor's existing placement.
+          addEdge({
+            from: placementId,
+            to: `${childId}@${ancestorLevel}`,
+            recursion: true,
+          });
+          continue;
+        }
+        addEdge({ from: placementId, to: `${childId}@${level + 1}` });
+        visit(childId, level + 1, nextAncestors);
+      }
+    };
+
+    visit(entryNodeId, 0, new Map());
+
+    return {
+      version: 1,
+      entryDefinitionId: entryNodeId,
+      source: {
+        name: entryNode.name || "Anonymous",
+        uri: "uri" in entryNode ? entryNode.uri.toString() : "",
+      },
+      definitions,
+      placements,
+      edges,
+    };
+  }
+
+  private _manifestKind(node: MapNode | FailNode): ManifestNodeKind {
+    if (!("failure" in node)) {
+      return "function";
+    }
+    if (node.failReason === FailReason.parseFail) {
+      return "parseFail";
+    }
+    if (node.failReason === FailReason.positionFail) {
+      return "positionFail";
+    }
+    return "findDefinitionFail";
+  }
+
+  private _manifestSource(
+    node: MapNode | FailNode
+  ): { uri: string; range: ManifestRange } | null {
+    if (!("uri" in node) || !("range" in node)) {
+      return null;
+    }
+    const { uri, range } = node;
+    return {
+      uri: uri.toString(),
+      range: {
+        start: { line: range.start.line, character: range.start.character },
+        end: { line: range.end.line, character: range.end.character },
+      },
+    };
   }
 
   private _buildNodeMapNodeFromTsMorphNode(

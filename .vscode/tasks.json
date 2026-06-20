@@ -6,8 +6,29 @@
 		{
 			"type": "npm",
 			"script": "watch",
-			"problemMatcher": "$ts-webpack-watch",
 			"isBackground": true,
+			// Inline matcher instead of "$ts-webpack-watch": that named matcher is
+			// contributed by a bundled extension VS Code ships but Cursor does not,
+			// so it resolves to nothing and the watch task loses its background
+			// signal ("task has not exited and doesn't have a problemMatcher").
+			"problemMatcher": {
+				"owner": "typescript",
+				"source": "ts",
+				"applyTo": "closedDocuments",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "\\[tsl\\] ERROR in (.*)?\\((\\d+),(\\d+)\\)\\s*\\n\\s*TS\\d+:\\s*(.*)",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "(webpack \\d|asset |compiling|Compilation .*starting)",
+					"endsPattern": "(compiled successfully|compiled with|webpack \\d.* compiled)"
+				}
+			},
 			"presentation": {
 				"reveal": "never",
 				"group": "watchers"

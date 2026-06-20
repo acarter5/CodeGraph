@@ -1,7 +1,15 @@
-import { resolve, join, basename } from "path";
+import { resolve, join, basename, isAbsolute } from "path";
 import * as vscode from "vscode";
-import type { FailNode, MapNode, NodeMap, PageData } from "types/index";
-import { readFile, PathLike, writeFile, existsSync, mkdirSync } from "fs";
+import type {
+  FailNode,
+  GraphManifest,
+  MapNode,
+  NodeMap,
+  PageData,
+  SnapshotMeta,
+  WebviewMessage,
+} from "types/index";
+import { readFile, PathLike, writeFile, mkdirSync } from "fs";
 
 import { placeholders, MESSAGES } from "src/constants/index";
 import { isFindDefinitionFailNode, waitFor } from "src/utils/index";
@@ -20,9 +28,11 @@ export default class View {
         id: string;
       }
     | undefined;
-  //todo: make this configureable in settings
-  codeGraphOutputDir = "/Users/adamcarter/lattice/test";
+  // Resolved from the `codegraph.outputDirectory` setting in registerEntryNode.
+  codeGraphOutputDir: string | undefined;
   graphDir: string | undefined;
+  // Image metadata per snapshotted node id, consumed when writing graph.json.
+  snapshotMeta: Map<string, SnapshotMeta> = new Map();
   constructor(context: vscode.ExtensionContext, nodeMap: NodeMap) {
     this.context = context;
     this.panel = vscode.window.createWebviewPanel(
@@ -42,17 +52,24 @@ export default class View {
 
     this.lastSnapshotedNode = null;
 
-    this.panel.webview.onDidReceiveMessage(async ({ type, data, message }) => {
-      // console.log("[hf] in panel callBack", {
-      //   prevSnapshotedNode: this.lastSnapshotedNode,
-      //   newSnapshotedNode: data.snapshotedNode,
-      //   this: this,
-      //   type,
-      //   data,
-      // });
-      if ((type = MESSAGES.snapshotTaken)) {
+    this.panel.webview.onDidReceiveMessage(async (message: any) => {
+      // Webview-side logs and errors get routed back to the host so they show
+      // up in the extension host console alongside the host's own [hf] logs.
+      // Without this, a script error in app.js is invisible from here — it
+      // only shows in the webview's own DevTools panel.
+      if (message && message.type === "webviewLog") {
+        // Stringify so the contents survive into the extension host log
+        // even when the console viewer collapses nested objects to `{…}`.
+        try {
+          console.log("[hf:webview]", JSON.stringify(message.data));
+        } catch {
+          console.log("[hf:webview]", message.data);
+        }
+        return;
+      }
+      if (message.type === MESSAGES.snapshotTaken) {
         console.log("[hf] in receive message", {
-          dataFromMessage: data,
+          dataFromMessage: message.data,
           curNodeData: this.curNodeData,
         });
 
@@ -60,7 +77,7 @@ export default class View {
           throw Error("output directory not found");
         }
 
-        const { snapshotedNode, img } = data;
+        const { snapshotedNode, img, width, height, scale } = message.data;
 
         // const wsRootDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         // const codeGraphDir = "CodeGraph";
@@ -86,18 +103,20 @@ export default class View {
           imageFileName
         );
 
-        console.log("[hf]", { newImgPath });
-        await writeFile(
-          newImgPath + ".png",
-          Buffer.from(img, "base64"),
-          (err) => {
-            if (!err) {
-              console.log("[hf] save succeeded");
-            } else {
-              console.error("[hf] save failed", { err });
-            }
+        writeFile(newImgPath + ".png", img, "base64", (err) => {
+          if (err) {
+            console.error("snapshot save failed", { err });
           }
-        );
+        });
+
+        // Record image metadata so the graph manifest can size the snapshot
+        // and (later) anchor connectors. Keyed by node id (== snapshotedNode).
+        this.snapshotMeta.set(snapshotedNode, {
+          file: imageFileName + ".png",
+          width,
+          height,
+          scale,
+        });
 
         this.lastSnapshotedNode = snapshotedNode;
       }
@@ -114,6 +133,7 @@ export default class View {
     let range: vscode.Range;
     let functionName: string;
     let uri: vscode.Uri;
+    let code: string;
 
     if (!curNode) {
       throw Error("view: load page: nodeId not found in node map");
@@ -125,6 +145,7 @@ export default class View {
       range = curNode.range;
       functionName = curNode.name || "Anonymous";
       uri = curNode.uri;
+      code = curNode.code;
     }
 
     this.curNodeData = {
@@ -133,10 +154,15 @@ export default class View {
       id: nodeId,
     };
 
+    // The webview renders `code` directly using Prism — no clipboard, no
+    // paste handler, no vscode copy command. `language` tells Prism which
+    // grammar to apply; we just look at the file extension.
     const panelData = {
       start: range.start.line + 1,
       end: range.end.line + 1,
       nodeId,
+      code,
+      language: View._inferLanguage(uri),
     };
 
     // const entryNodeUri =
@@ -166,8 +192,24 @@ export default class View {
       value: JSON.stringify(JSON.stringify(panelData)),
     });
 
+    // Log the resolved URIs once per page load so we can verify the webview
+    // is being handed real, reachable paths to Prism, dom-to-image, and the
+    // app script. If app.js never logs into the host, this is the next thing
+    // to check.
+    console.log(
+      "[hf] loadPage resolved URIs",
+      Object.fromEntries(
+        replacements.map(({ key, value }) => [key, value.toString()])
+      )
+    );
+
     replacements.forEach(({ key, value }) => {
-      html = html.replace(key, value);
+      // Use a function replacement so $-substitution patterns inside `value`
+      // (rare in URIs, but common in the JSON-encoded source code we stuff
+      // into __DATA_PLACEHOLDER__ — e.g. template literals ${userAgent}) are
+      // NOT interpreted by String.replace. Passing a plain string here would
+      // let `$&`/`$'`/etc. corrupt the rendered HTML.
+      html = html.replace(key, () => value.toString());
     });
 
     html = html.replace(/__CSP_SOURCE__/g, this.panel.webview.cspSource);
@@ -176,6 +218,43 @@ export default class View {
 
   public getLastSnapshotedNode() {
     return this.lastSnapshotedNode;
+  }
+
+  // Maps a file URI's extension to a Prism language id. Falls back to
+  // javascript so non-js code still tokenizes against a sane default rather
+  // than rendering as flat text.
+  private static _inferLanguage(uri: vscode.Uri): string {
+    const path = uri.path.toLowerCase();
+    if (path.endsWith(".tsx")) return "tsx";
+    if (path.endsWith(".jsx")) return "jsx";
+    if (path.endsWith(".ts") || path.endsWith(".mts") || path.endsWith(".cts")) {
+      return "typescript";
+    }
+    return "javascript";
+  }
+
+  public getSnapshotMeta(): Map<string, SnapshotMeta> {
+    return this.snapshotMeta;
+  }
+
+  // Writes the graph manifest (graph.json) into the graph's output folder,
+  // alongside the snapshot PNGs it references by relative filename.
+  public writeManifest(manifest: GraphManifest): Promise<void> {
+    if (!this.codeGraphOutputDir || !this.graphDir) {
+      throw Error("view: writeManifest: output directory not registered");
+    }
+
+    const manifestPath = join(
+      this.codeGraphOutputDir,
+      this.graphDir,
+      "graph.json"
+    );
+
+    return new Promise((resolve, reject) =>
+      writeFile(manifestPath, JSON.stringify(manifest, null, 2), (err) =>
+        err ? reject(err) : resolve()
+      )
+    );
   }
 
   private _read(path: PathLike): Promise<string> {
@@ -222,9 +301,9 @@ export default class View {
         "cannot create a graph from the selected function because its defintion was not found"
       );
     }
-    if (!existsSync(this.codeGraphOutputDir)) {
-      throw Error("selected output directory does not exist in filesystem");
-    }
+
+    this.codeGraphOutputDir = this._resolveOutputDir();
+    mkdirSync(this.codeGraphOutputDir, { recursive: true });
 
     const escapedUri = entryNode.uri.path
       .split("/")
@@ -235,9 +314,39 @@ export default class View {
     this.graphDir = `${entryNode.name} ${escapedUri} ${entryNode.id}`;
 
     const fullDirPath = join(this.codeGraphOutputDir, this.graphDir);
+    mkdirSync(fullDirPath, { recursive: true });
+  }
 
-    if (!existsSync(fullDirPath)) {
-      mkdirSync(fullDirPath);
+  /*
+    Resolves the directory snapshots are written to:
+      - `codegraph.outputDirectory` setting, if set (absolute used as-is,
+        relative resolved against the workspace root)
+      - otherwise `.codegraph` in the workspace root
+      - throws if no setting and no open workspace folder
+  */
+  private _resolveOutputDir(): string {
+    const configured = vscode.workspace
+      .getConfiguration("codegraph")
+      .get<string>("outputDirectory")
+      ?.trim();
+
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    if (configured) {
+      if (isAbsolute(configured)) {
+        return configured;
+      }
+      return workspaceRoot
+        ? join(workspaceRoot, configured)
+        : resolve(configured);
     }
+
+    if (workspaceRoot) {
+      return join(workspaceRoot, ".codegraph");
+    }
+
+    throw Error(
+      "CodeGraph: no output directory available. Open a workspace folder or set the `codegraph.outputDirectory` setting to an absolute path."
+    );
   }
 }

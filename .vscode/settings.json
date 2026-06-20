@@ -9,5 +9,8 @@
         "dist": true // set this to false to include "dist" folder in search results
     },
     // Turn off tsc task auto detection since we have the necessary tasks as npm scripts
-    "typescript.tsc.autoDetect": "off"
+    "typescript.tsc.autoDetect": "off",
+    // Use the workspace's pinned TypeScript (4.9.5) for the editor language service
+    // so editor errors match `npm run compile`, instead of the editor's bundled TS.
+    "typescript.tsdk": "node_modules/typescript/lib"
 }

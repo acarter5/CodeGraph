@@ -15,7 +15,7 @@ export const getTsMorphNodeFunctionName = (node: TSMorphFunctionNode) => {
   return name || "Anonymous";
 };
 
-export function looksLike(a, b) {
+export function looksLike(a: any, b: any): boolean {
   return (
     a &&
     b &&
@@ -27,22 +27,20 @@ export function looksLike(a, b) {
       const aVal = a[bKey];
 
       if (typeof bVal === "function") {
-        console.log("[hf]", "FUNCTION CONDITION HIT");
         return bVal(aVal);
       }
       const result = Array.isArray(aVal)
         ? Array.isArray(bVal) &&
           aVal.length === bVal.length &&
-          aVal.every((val, idx) => looksLike(val, bVal[idx]))
+          aVal.every((val: any, idx: number) => looksLike(val, bVal[idx]))
         : isPrimitive(bVal)
         ? bVal === aVal
         : looksLike(aVal, bVal);
-      // console.log("[hf] LOOKS LIKE", { bKey, aVal, bVal, result });
       return result;
     })
   );
 }
 
-function isPrimitive(val) {
+function isPrimitive(val: any): boolean {
   return val == null || /^[sbn]/.test(typeof val);
 }
