@@ -42,9 +42,8 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
   `line-column` (in `scanner/tsMorph.ts`) returns 1-based `line` AND `col`; `vscode.Position` is 0-based for both. The builder converted `line - 1` but passed `col` straight, landing the cursor one char into the callee identifier. Fixed both call sites in `builder/index.ts` (initial resolution + the retry loop) to `col - 1`.
   **Side effects:** should make definition resolution more reliable (fewer fallbacks into the 5× retry / fewer spurious `FindDefinitionFail` nodes), and it makes the call-column trustworthy — a prerequisite for populating `edges[].callSite` in #6 (still deferred until FE per that entry). Worth eyeballing a real run to confirm retries actually drop.
 
-- [ ] 🟠 **#8 — `object-hash` on a raw compiler node**
-  `src/builder/index.ts:307` — `objectHash.sha1(node.compilerNode)`. TS compiler nodes have circular `.parent` back-pointers and are large → circular-ref risk + slow.
-  Fix: hash a stable identity (uri + range + name, or text + position).
+- [x] 🟠 **#8 — `object-hash` on a raw compiler node** ✅ FIXED
+  `_buildNodeMapNodeFromTsMorphNode` now hashes a stable source identity — `objectHash.sha1({ uri, range (flattened to plain numbers), name })` — instead of `node.compilerNode`. The uri + definition range is exactly what makes two references to the same function dedup to one NodeMap entry, so dedup semantics are preserved while dropping the circular-`.parent`/large-subtree hashing risk and cost. (The `node` param is still used for `getTsMorphNodeFunctionName`.)
 
 - [x] 🟠 **#9 — `waitForNodeSnapshot` can hang forever** ✅ FIXED
   `waitFor` (`src/utils/index.ts`) now takes `{ intervalMs, maxAttempts }` (default 400ms × 75 ≈ 30s) and **rejects** once the attempts are exhausted instead of polling forever; pass `maxAttempts: Infinity` to opt out. `View.waitForNodeSnapshot` wraps the call in try/catch: on timeout it logs a warning and resolves so the serial recursion continues — the affected node just gets no image (`image: null` in the manifest) rather than stalling the entire build.
