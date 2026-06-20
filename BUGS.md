@@ -38,9 +38,9 @@ Legend: 🔴 confirmed bug · 🟠 likely bug / needs verification · 🧹 clean
 
 ## Likely bugs / needs verification
 
-- [ ] 🟠 **#7 — Column off-by-one into the definition provider**
-  `src/scanner/tsMorph.ts:54` → `src/builder/index.ts:161-163`. `line-column` returns 1-based `line` and `col`; code does `line - 1` but passes `col` straight into a 0-based `vscode.Position`. Cursor lands one char into the identifier — likely why definition lookups are flaky and need the 5× retry at `:178`.
-  Fix: try `col - 1`; verify retries drop.
+- [x] 🟠 **#7 — Column off-by-one into the definition provider** ✅ FIXED
+  `line-column` (in `scanner/tsMorph.ts`) returns 1-based `line` AND `col`; `vscode.Position` is 0-based for both. The builder converted `line - 1` but passed `col` straight, landing the cursor one char into the callee identifier. Fixed both call sites in `builder/index.ts` (initial resolution + the retry loop) to `col - 1`.
+  **Side effects:** should make definition resolution more reliable (fewer fallbacks into the 5× retry / fewer spurious `FindDefinitionFail` nodes), and it makes the call-column trustworthy — a prerequisite for populating `edges[].callSite` in #6 (still deferred until FE per that entry). Worth eyeballing a real run to confirm retries actually drop.
 
 - [ ] 🟠 **#8 — `object-hash` on a raw compiler node**
   `src/builder/index.ts:307` — `objectHash.sha1(node.compilerNode)`. TS compiler nodes have circular `.parent` back-pointers and are large → circular-ref risk + slow.

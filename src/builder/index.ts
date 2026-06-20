@@ -168,9 +168,13 @@ export default class Builder {
 
     let callDefinitionLocations = (await Promise.all(
       callExpressionLocations.map((lineColumnFinder) => {
+        // `line-column` is 1-based for both line and col; `vscode.Position` is
+        // 0-based for both, so subtract 1 from each. Passing `col` unconverted
+        // landed the cursor one char into the identifier, which is why
+        // definition resolution was flaky and leaned on the retry loop below.
         const position = new vscode.Position(
           lineColumnFinder.line - 1,
-          lineColumnFinder.col
+          lineColumnFinder.col - 1
         );
         return vscode.commands.executeCommand(
           "vscode.executeDefinitionProvider",
@@ -198,7 +202,7 @@ export default class Builder {
                 targetFunctionUri,
                 new vscode.Position(
                   callExpressionLocations[idx].line - 1,
-                  callExpressionLocations[idx].col
+                  callExpressionLocations[idx].col - 1
                 )
               );
         })
