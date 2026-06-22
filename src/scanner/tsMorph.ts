@@ -18,6 +18,9 @@ import type { TSMorphFunctionNode } from "types/index";
 export default class ScannerTsMorph extends Scanner {
   postitionedFunctionNode: TSMorphFunctionNode | null;
   callExpressionLocations: LineColumnFinder[];
+  // The callee identifier text per call, index-aligned with
+  // callExpressionLocations — its length sizes the call-site rect downstream.
+  callExpressionNames: string[];
   constructor(
     unpostitionedFunctionNode: TSMorphFunctionNode,
     fileNode: SourceFile,
@@ -26,10 +29,12 @@ export default class ScannerTsMorph extends Scanner {
     super(unpostitionedFunctionNode, fileNode, targetFileCode);
 
     this.postitionedFunctionNode = this._findPositionedFunctionNode();
-    this.callExpressionLocations = this._getCallExpressionLocations();
+    const callExpressions = this._getCallExpressions();
+    this.callExpressionLocations = callExpressions.map((c) => c.location);
+    this.callExpressionNames = callExpressions.map((c) => c.name);
   }
 
-  private _getCallExpressionLocations() {
+  private _getCallExpressions(): { location: LineColumnFinder; name: string }[] {
     const { postitionedFunctionNode, targetFileCode } = this;
 
     if (!postitionedFunctionNode) {
@@ -48,18 +53,22 @@ export default class ScannerTsMorph extends Scanner {
             ?.getLastChildByKind(SyntaxKind.Identifier)
         : callExpressionNode.getFirstChild()
     );
-    const tsMorphCalleeLocations = tsMorphCallees
-      .map(
-        (tsMorphCallee) =>
-          tsMorphCallee && lineColumn(targetFileCode, tsMorphCallee.getStart())
+    const callExpressions = tsMorphCallees
+      .map((tsMorphCallee) =>
+        tsMorphCallee
+          ? {
+              location: lineColumn(targetFileCode, tsMorphCallee.getStart()),
+              name: tsMorphCallee.getText(),
+            }
+          : null
       )
       .filter(ExcludeNullish);
 
-    if (tsMorphCalleeLocations.length !== tsMorphCallees.length) {
+    if (callExpressions.length !== tsMorphCallees.length) {
       throw new Error("problem finding callee in call expression");
     }
 
-    return tsMorphCalleeLocations;
+    return callExpressions;
   }
 
   // Not every Node kind exposes getStructure (e.g. ArrowFunction), so guard it.

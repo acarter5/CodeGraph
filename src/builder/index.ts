@@ -6,7 +6,6 @@ import ReaderVSCode from "../reader/vscode";
 import ScannerTsMorph from "../scanner/tsMorph";
 import View from "../view/index";
 
-import { ExcludeNullish } from "src/utils";
 import { getTsMorphNodeFunctionName } from "src/utils/tsMorph";
 import type {
   EntryNodeRawData,
@@ -20,13 +19,14 @@ import type {
   ManifestEdge,
   ManifestNodeKind,
   ManifestRange,
+  ManifestRect,
+  OutgoingCall,
 } from "types/index";
 import {
   FailReason,
   TSMorphFunctionNode,
   FindDefinitionFail,
   NodeMap,
-  GraphNode,
   MapNode,
 } from "types/index";
 
@@ -112,7 +112,8 @@ export default class Builder {
       targetFileCode
     );
 
-    const { postitionedFunctionNode, callExpressionLocations } = scanner;
+    const { postitionedFunctionNode, callExpressionLocations, callExpressionNames } =
+      scanner;
 
     if (!postitionedFunctionNode) {
       console.error("unable to find positionedFunctionNode");
@@ -159,6 +160,26 @@ export default class Builder {
       view.registerEntryNode(mapNode);
       this.entryNodeId = mapNode.id;
     }
+
+    // Record each call site relative to the snapshot code (row = line offset
+    // from the function's first line, col = column within that line; the first
+    // line starts at range.start.character, later lines at column 0). The
+    // webview measures the pixel rect per call at capture time, and `definitionNodeId`
+    // is filled in once definitions resolve below — both index-aligned with
+    // callExpressionLocations. This drives call-site-anchored connectors.
+    mapNode.outgoingCalls = callExpressionLocations.map((loc, i) => {
+      const row = loc.line - 1 - targetFunctionRange.start.line;
+      const col =
+        loc.col - 1 - (row === 0 ? targetFunctionRange.start.character : 0);
+      return {
+        row,
+        col,
+        length: callExpressionNames[i]?.length ?? 1,
+        definitionNodeId: null,
+        rect: null,
+      } as OutgoingCall;
+    });
+
     nodeMap.set(mapNode.id, mapNode);
 
     // Load the snapshot page; the webview's app.js will Prism-highlight and
@@ -281,37 +302,20 @@ export default class Builder {
         idx += 1;
       }
 
-      mapNode.outgoingCalls = childNodes
-        .filter(ExcludeNullish)
-        .map((mapNode) => mapNode.id);
+      // Link each outgoing call to the definition it resolved to (index-aligned
+      // with childNodes / callExpressionLocations). `null` children are
+      // node_modules calls we don't snapshot, so they get no connector.
+      childNodes.forEach((child, i) => {
+        const outgoingCall = mapNode.outgoingCalls[i];
+        if (outgoingCall) {
+          outgoingCall.definitionNodeId = child ? child.id : null;
+        }
+      });
     } catch (error) {
       console.error("[hf] error in recursive buildNodeMap calls", { error });
     }
 
     return mapNode;
-  }
-
-  public buildNodeGraph(nodeId: string, ancestors: string[] = []): GraphNode {
-    const { nodeMap } = this;
-    if (ancestors.includes(nodeId)) {
-      return {
-        recursionId: nodeId,
-        children: [],
-      };
-    }
-
-    const node = nodeMap.get(nodeId);
-
-    const graphNode = { ...node } as GraphNode & {
-      id?: string;
-      outgoingCalls?: string[];
-    };
-    graphNode.children =
-      graphNode.outgoingCalls?.map((childId: string) =>
-        this.buildNodeGraph(childId, [...ancestors, graphNode.id as string])
-      ) || [];
-
-    return graphNode;
   }
 
   /*
@@ -351,16 +355,6 @@ export default class Builder {
     const placements: ManifestPlacement[] = [];
     const edges: ManifestEdge[] = [];
     const seenPlacements = new Set<string>();
-    const seenEdges = new Set<string>();
-
-    const addEdge = (edge: ManifestEdge) => {
-      const key = `${edge.from}->${edge.to}->${edge.recursion ? "r" : ""}`;
-      if (seenEdges.has(key)) {
-        return;
-      }
-      seenEdges.add(key);
-      edges.push(edge);
-    };
 
     const visit = (
       nodeId: string,
@@ -375,24 +369,44 @@ export default class Builder {
       placements.push({ id: placementId, definitionId: nodeId, level });
 
       const node = nodeMap.get(nodeId);
-      const outgoing =
-        node && "outgoingCalls" in node ? node.outgoingCalls : [];
-
       const nextAncestors = new Map(ancestors).set(nodeId, level);
+      // Recurse into each distinct child once (placements dedup by level), but
+      // emit an edge per call below — multiple calls to the same definition get
+      // their own connectors.
+      const recursed = new Set<string>();
 
-      for (const childId of outgoing) {
+      const linkChild = (childId: string, callSiteRect?: ManifestRect) => {
         const ancestorLevel = nextAncestors.get(childId);
         if (ancestorLevel !== undefined) {
           // Cycle: point backward to the ancestor's existing placement.
-          addEdge({
+          edges.push({
             from: placementId,
             to: `${childId}@${ancestorLevel}`,
             recursion: true,
+            ...(callSiteRect ? { callSiteRect } : {}),
           });
-          continue;
+          return;
         }
-        addEdge({ from: placementId, to: `${childId}@${level + 1}` });
-        visit(childId, level + 1, nextAncestors);
+        edges.push({
+          from: placementId,
+          to: `${childId}@${level + 1}`,
+          ...(callSiteRect ? { callSiteRect } : {}),
+        });
+        if (!recursed.has(childId)) {
+          recursed.add(childId);
+          visit(childId, level + 1, nextAncestors);
+        }
+      };
+
+      // One edge per outgoing call (so multiple calls to the same definition
+      // each get their own connector, anchored at the call). Fail nodes have no
+      // outgoingCalls. Skip node_modules calls (definitionNodeId null).
+      const outgoingCalls =
+        node && "outgoingCalls" in node ? node.outgoingCalls : [];
+      for (const call of outgoingCalls) {
+        if (call.definitionNodeId) {
+          linkChild(call.definitionNodeId, call.rect ?? undefined);
+        }
       }
     };
 
@@ -471,13 +485,13 @@ export default class Builder {
       name,
     });
 
-    const graphNode = {
+    const graphNode: MapNode = {
       id: astNodeHash,
       uri: targetFunctionUri,
       range: targetFunctionRange,
       code: targetFunctionCode,
       incomingCalls: parentHash ? [parentHash] : [],
-      outgoingCalls: [] as string[],
+      outgoingCalls: [],
       name,
     };
 

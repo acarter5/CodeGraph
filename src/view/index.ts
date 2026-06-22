@@ -77,7 +77,24 @@ export default class View {
           throw Error("output directory not found");
         }
 
-        const { snapshotedNode, img, width, height, scale } = message.data;
+        const { snapshotedNode, img, width, height, scale, callSiteRects } =
+          message.data;
+
+        // Store the measured call-site rects back onto the node's outgoingCalls
+        // (index-aligned). serializeGraph reads them to anchor connectors.
+        const snapshotedMapNode = this.nodeMap.get(snapshotedNode);
+        if (
+          snapshotedMapNode &&
+          "outgoingCalls" in snapshotedMapNode &&
+          Array.isArray(callSiteRects)
+        ) {
+          callSiteRects.forEach((rect, i) => {
+            const outgoingCall = snapshotedMapNode.outgoingCalls[i];
+            if (outgoingCall) {
+              outgoingCall.rect = rect ?? null;
+            }
+          });
+        }
 
         // const wsRootDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         // const codeGraphDir = "CodeGraph";
@@ -111,6 +128,8 @@ export default class View {
 
         // Record image metadata so the graph manifest can size the snapshot
         // and (later) anchor connectors. Keyed by node id (== snapshotedNode).
+        // The PNG itself is written to disk above; the plugin fetches it from
+        // the local server by this `file` name (see CodeGraphServer).
         this.snapshotMeta.set(snapshotedNode, {
           file: imageFileName + ".png",
           width,
@@ -154,6 +173,12 @@ export default class View {
       id: nodeId,
     };
 
+    // Outgoing calls to measure in the webview (MapNodes only; fail nodes have
+    // none). We send just the geometry the webview needs (row/col/length); it
+    // returns a normalized rect per call so we can anchor connectors.
+    const outgoingCalls =
+      "outgoingCalls" in curNode ? curNode.outgoingCalls : [];
+
     // The webview renders `code` directly using Prism — no clipboard, no
     // paste handler, no vscode copy command. `language` tells Prism which
     // grammar to apply; we just look at the file extension.
@@ -163,6 +188,7 @@ export default class View {
       nodeId,
       code,
       language: View._inferLanguage(uri),
+      calls: outgoingCalls.map(({ row, col, length }) => ({ row, col, length })),
     };
 
     // const entryNodeUri =
@@ -237,8 +263,26 @@ export default class View {
     return this.snapshotMeta;
   }
 
+  // The resolved output directory (server root) and the per-graph subfolder
+  // name. Set by registerEntryNode; both are available once buildNodeMap has
+  // run. Used to start the local server and announce the graph's URL.
+  public getOutputDir(): string {
+    if (!this.codeGraphOutputDir) {
+      throw Error("view: getOutputDir: output directory not registered");
+    }
+    return this.codeGraphOutputDir;
+  }
+
+  public getGraphDir(): string {
+    if (!this.graphDir) {
+      throw Error("view: getGraphDir: graph directory not registered");
+    }
+    return this.graphDir;
+  }
+
   // Writes the graph manifest (graph.json) into the graph's output folder,
-  // alongside the snapshot PNGs it references by relative filename.
+  // alongside the snapshot PNGs it references by relative filename. The FigJam
+  // plugin fetches both over the local server (see CodeGraphServer).
   public writeManifest(manifest: GraphManifest): Promise<void> {
     if (!this.codeGraphOutputDir || !this.graphDir) {
       throw Error("view: writeManifest: output directory not registered");

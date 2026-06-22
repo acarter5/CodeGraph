@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./node_modules/@figma"
+    ],
+    // @figma/plugin-typings, @types/node and lib.dom all declare globals like
+    // `console`/`fetch`; without this, `tsc` fails on redeclare errors inside
+    // those .d.ts files (not our code). The Rollup build transpiles only, so it
+    // never type-checks — run `npx tsc --noEmit -p tsconfig.json` to do that.
+    "skipLibCheck": true
+  }
+}

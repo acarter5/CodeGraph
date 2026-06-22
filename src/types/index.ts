@@ -21,13 +21,30 @@ export type TSMorphFunctionNode =
   | FunctionExpression
   | ArrowFunction;
 
+// One call this node makes — a call expression inside the node's code. Carries
+// the call site so we can anchor a connector at the precise call token: `row`/
+// `col` are 0-based, relative to the snapshot's `code` (row = line offset from
+// the function start; col = column within that line). `definitionNodeId` is filled once
+// the call's definition resolves (null for node_modules / unresolved calls);
+// `rect` is the normalized pixel box of the call token, measured in the webview.
+export type OutgoingCall = {
+  row: number;
+  col: number;
+  length: number;
+  definitionNodeId: string | null;
+  rect: ManifestRect | null;
+};
+
 export type MapNode = {
   id: string;
   uri: vscode.Uri;
   range: vscode.Range;
   code: string;
   incomingCalls: string[];
-  outgoingCalls: string[];
+  // One entry per call expression in this node's code (in source order). The
+  // single source of truth for what this node calls — each entry's
+  // `definitionNodeId` is the called definition's node id.
+  outgoingCalls: OutgoingCall[];
   name: string | undefined;
 };
 
@@ -81,10 +98,6 @@ export type NodeRawData = EntryNodeRawData & {
 
 export type NodeMap = ts.ESMap<string, MapNode | FailNode>;
 
-export type GraphNode = (MapNode | FailNode | { recursionId: string }) & {
-  children: GraphNode[];
-};
-
 export type PageData = {
   functionName: string;
   uri: vscode.Uri;
@@ -103,6 +116,9 @@ export type WebviewMessage =
         width: number;
         height: number;
         scale: number;
+        // Per-call-site normalized rects, index-aligned with the node's
+        // callSites; null where a call token couldn't be measured.
+        callSiteRects?: (ManifestRect | null)[];
       };
     }
   | { type: "copied" }
@@ -112,7 +128,10 @@ export type WebviewMessage =
 
 // Metadata about a written snapshot PNG, recorded by `View` keyed by node id.
 export type SnapshotMeta = {
-  file: string; // PNG filename, relative to the graph's output folder
+  // PNG filename, relative to the graph's output folder. The FigJam plugin
+  // resolves this against the manifest URL and fetches the image bytes from the
+  // local server (see CLAUDE.md "Client ↔ backend integration").
+  file: string;
   width: number;
   height: number;
   scale: number;
@@ -139,6 +158,17 @@ export type ManifestRange = {
   end: ManifestPosition;
 };
 
+// A rectangle normalized to [0..1] relative to a definition's snapshot image
+// (the captured `#content` node, title bar + gutter included). Used to anchor a
+// connector at a call site inside the caller's image; normalized so it survives
+// the image being scaled to its logical box in FigJam.
+export type ManifestRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 // A unique function (dedup layer). The `id` is the color key the renderer
 // uses to tie repeated placements of the same definition together.
 export type ManifestDefinition = {
@@ -159,9 +189,12 @@ export type ManifestPlacement = {
 
 // A connector between two placements, anchored at the caller's call site.
 export type ManifestEdge = {
-  from: string; // placement id
-  to: string; // placement id
-  callSite?: ManifestPosition;
+  from: string; // placement id (the caller)
+  to: string; // placement id (the definition)
+  // Normalized box of the call token within the caller's image. When present,
+  // the renderer anchors the connector at the call site rather than the box
+  // edge. Absent for fail nodes (no snapshot) or unmeasurable calls.
+  callSiteRect?: ManifestRect;
   recursion?: true; // back-edge to an ancestor; renderer may draw it differently
 };
 

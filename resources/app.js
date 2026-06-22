@@ -57,7 +57,7 @@
   const contentNode = document.getElementById("content");
   const containerNode = document.getElementById("container");
 
-  const { code, language, start, end, nodeId } = window.__data__;
+  const { code, language, start, end, nodeId, calls } = window.__data__;
 
   // Line height has to be applied identically to the rendered code AND to the
   // line-number gutter so they line up vertically. 19px is the size vscode's
@@ -174,8 +174,110 @@
     footer.style.display = "flex";
   }
 
+  // Character offset into `code` for a 0-based (row, col). `code` matches the
+  // rendered text exactly (Prism preserves all characters), so this offset
+  // indexes the rendered DOM's text content too.
+  function offsetFor(codeStr, row, col) {
+    const lines = codeStr.split("\n");
+    if (row < 0 || row >= lines.length) {
+      return -1;
+    }
+    let offset = 0;
+    for (let i = 0; i < row; i++) {
+      offset += lines[i].length + 1; // +1 for the newline
+    }
+    const clampedCol = Math.max(0, Math.min(col, lines[row].length));
+    return offset + clampedCol;
+  }
+
+  // Build a DOM Range over [start, start+length) characters of the rendered
+  // code, walking text nodes (Prism wraps tokens in nested spans).
+  function rangeForOffset(root, start, length) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    const end = start + Math.max(1, length);
+    let acc = 0;
+    let startNode = null;
+    let startOffset = 0;
+    let endNode = null;
+    let endOffset = 0;
+    let textNode;
+    while ((textNode = walker.nextNode())) {
+      const len = textNode.nodeValue.length;
+      if (startNode === null && acc + len > start) {
+        startNode = textNode;
+        startOffset = start - acc;
+      }
+      if (startNode !== null && acc + len >= end) {
+        endNode = textNode;
+        endOffset = end - acc;
+        break;
+      }
+      acc += len;
+    }
+    if (startNode === null) {
+      return null;
+    }
+    if (endNode === null) {
+      endNode = startNode;
+      endOffset = startNode.nodeValue.length;
+    }
+    try {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return range;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Measure each call token as a rect normalized to the captured #content box,
+  // so it survives the image being scaled to its FigJam box. Index-aligned with
+  // the host's callSites; null where a token couldn't be located/measured.
+  function measureCallSites() {
+    if (!Array.isArray(calls) || calls.length === 0) {
+      return [];
+    }
+    const codeEl = document.getElementById("code");
+    const contentRect = contentNode.getBoundingClientRect();
+    if (!codeEl || !contentRect.width || !contentRect.height) {
+      return calls.map(() => null);
+    }
+    return calls.map((call) => {
+      const offset = offsetFor(code || "", call.row, call.col);
+      if (offset < 0) {
+        return null;
+      }
+      const range = rangeForOffset(codeEl, offset, call.length || 1);
+      if (!range) {
+        return null;
+      }
+      // getClientRects()[0] is the first line's box (white-space: pre keeps a
+      // call on one line, but be defensive).
+      const box = range.getClientRects()[0] || range.getBoundingClientRect();
+      if (!box || !box.width) {
+        return null;
+      }
+      return {
+        x: (box.left - contentRect.left) / contentRect.width,
+        y: (box.top - contentRect.top) / contentRect.height,
+        width: box.width / contentRect.width,
+        height: box.height / contentRect.height,
+      };
+    });
+  }
+
   async function capture() {
     const scale = 3;
+    // Measure before dom-to-image walks/clones the tree.
+    const callSiteRects = measureCallSites();
+
+    // dom-to-image's FIRST capture of a freshly-rendered DOM is intermittently
+    // blank/incomplete (fonts/layout not fully flushed when it serializes the
+    // tree; it tends to hit the larger/wider nodes). Capturing twice and using
+    // the second result is the standard, reliable workaround. The first call
+    // also primes font/image loading inside the cloned tree.
+    await domtoimage.toPng(contentNode, { bgColor: "transparent", scale });
     const pngData = await domtoimage.toPng(contentNode, {
       bgColor: "transparent",
       scale,
@@ -191,7 +293,12 @@
       image.src = pngData;
     });
 
-    hostLog("snapshotTaken", { nodeId, width, height });
+    hostLog("snapshotTaken", {
+      nodeId,
+      width,
+      height,
+      callSites: callSiteRects.length,
+    });
 
     vscode.postMessage({
       type: "snapshotTaken",
@@ -201,6 +308,7 @@
         width,
         height,
         scale,
+        callSiteRects,
       },
     });
   }

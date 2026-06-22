@@ -25,6 +25,11 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Directory where CodeGraph writes snapshot PNGs. Absolute paths are used as-is; relative paths resolve against the workspace root. When empty, defaults to `.codegraph` in the workspace root."
+        },
+        "codegraph.serverPort": {
+          "type": "number",
+          "default": 3939,
+          "markdownDescription": "Port for the local server that hosts `graph.json` and snapshot PNGs for the FigJam plugin to fetch. Bound to `127.0.0.1` only."
         }
       }
     }
