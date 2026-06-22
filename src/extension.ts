@@ -8,6 +8,14 @@ import * as vscode from "vscode";
 import Builder from "./builder/index";
 import { NodeMap } from "./types";
 import View from "./view/index";
+import CodeGraphServer from "./server/index";
+
+// Default port for the local server the FigJam plugin fetches from. Overridable
+// via the `codegraph.serverPort` setting.
+const DEFAULT_SERVER_PORT = 3939;
+
+// One long-lived server reused across command runs; disposed on deactivate.
+let server: CodeGraphServer | undefined;
 
 // `Location` is pulled out so we can `instanceof`-check it below (a definition
 // provider returns either a `Location` or a `LocationLink`, which expose the
@@ -100,9 +108,41 @@ export function activate(context: vscode.ExtensionContext) {
       const manifest = builder.serializeGraph(view.getSnapshotMeta());
       await view.writeManifest(manifest);
 
-      vscode.window.showInformationMessage(
-        `CodeGraph: wrote ${manifest.definitions.length} definitions / ${manifest.placements.length} placements to graph.json`
-      );
+      // Serve the output directory so the sandboxed FigJam plugin can fetch the
+      // manifest + PNGs (it can't read them off disk). The server outlives the
+      // command so the plugin can pull after the build finishes.
+      const outputDir = view.getOutputDir();
+      const graphDir = view.getGraphDir();
+      const port =
+        vscode.workspace
+          .getConfiguration("codegraph")
+          .get<number>("serverPort") || DEFAULT_SERVER_PORT;
+
+      if (!server) {
+        server = new CodeGraphServer(outputDir, port);
+        // Tear the server down with the extension.
+        context.subscriptions.push({ dispose: () => server?.dispose() });
+      } else {
+        server.setRootDir(outputDir);
+      }
+
+      try {
+        const baseUrl = await server.start();
+        // graphDir contains spaces and a "%", so encode it for the URL path.
+        const manifestUrl = `${baseUrl}/${encodeURIComponent(
+          graphDir
+        )}/graph.json`;
+        await vscode.env.clipboard.writeText(manifestUrl);
+        vscode.window.showInformationMessage(
+          `CodeGraph: ${manifest.definitions.length} definitions / ${manifest.placements.length} placements. Serving at ${manifestUrl} (copied to clipboard) — paste it into the FigJam plugin.`
+        );
+      } catch (err) {
+        vscode.window.showErrorMessage(
+          `CodeGraph: wrote graph.json but the local server failed to start (port ${port} in use?): ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
     }
   );
 
@@ -112,4 +152,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 // No teardown needed — the webview panel and command are disposed via
 // `context.subscriptions`, and no other long-lived resources are held.
-export function deactivate() {}
+export function deactivate() {
+  server?.dispose();
+  server = undefined;
+}
