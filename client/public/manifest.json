@@ -1,0 +1,13 @@
+{
+  "name": "CodeGraph",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figjam", "figma"],
+  "ui": "index.html",
+  "networkAccess": {
+    "allowedDomains": [
+      "http://localhost:3939"
+    ],
+    "reasoning": "Fetches the generated code graph (graph.json + snapshot PNGs) from the CodeGraph VS Code extension's local server. If you change the codegraph.serverPort setting, update this URL to match. (Figma rejects IP addresses like 127.0.0.1 here, so use localhost.)"
+  }
+}
