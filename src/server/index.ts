@@ -73,6 +73,24 @@ export default class CodeGraphServer {
     this.boundPort = undefined;
   }
 
+  /*
+    Decode a URL path to a filesystem path. Graph dir/file names embed a literal
+    "%" (View turns the file extension's "." into "%", e.g. "cluster%js"), so a
+    request path can contain a bare "%" that isn't a valid percent-escape.
+    `decodeURIComponent` throws `URIError: URI malformed` on those, which would
+    otherwise crash the request handler. Browsers/Figma's fetch send such a "%"
+    unencoded, so before decoding we re-encode any "%" not already followed by
+    two hex digits to "%25". Real escapes (e.g. "%20" for spaces) still decode.
+  */
+  private _decodePath(pathname: string): string {
+    const safe = pathname.replace(/%(?![0-9a-fA-F]{2})/g, "%25");
+    try {
+      return decodeURIComponent(safe);
+    } catch {
+      return pathname;
+    }
+  }
+
   private _handle(req: http.IncomingMessage, res: http.ServerResponse) {
     // The Figma plugin UI iframe has a `null` origin, so permit any origin.
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -89,7 +107,7 @@ export default class CodeGraphServer {
       return;
     }
 
-    const requestPath = decodeURIComponent(
+    const requestPath = this._decodePath(
       new URL(req.url ?? "/", "http://localhost").pathname
     );
     // Resolve under the root and reject anything that escapes it (path
