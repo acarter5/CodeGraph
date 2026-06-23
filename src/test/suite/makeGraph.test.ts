@@ -201,4 +201,89 @@ suite("makeGraph integration", () => {
         `${withImages.length} images, served from ${outDir}`
     );
   });
+
+  // Regression: a class-method entry (MethodDeclaration) used to fall through
+  // the parser's function-kind search and get replaced by the first nested
+  // ArrowFunction in the body, so only that callback's calls were scanned. The
+  // method-level calls (`first`, `second`) were silently dropped — only
+  // `double` (inside the arrow) survived. Verify all three are captured now.
+  test("scans all calls in a class-method entry, not just a nested arrow's", async function () {
+    this.timeout(180000);
+
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codegraph-method-"));
+    const outDir = path.join(tmpRoot, "out");
+    const fixturePath = path.join(tmpRoot, "service.ts");
+
+    // The arrow `(x) => double(x)` is the first function-like descendant of the
+    // method body, so the pre-fix parser would have picked it and seen only
+    // `double`. `first()` and `second()` are method-level calls that the fix
+    // must now reach.
+    const source = [
+      "class Service {",
+      "  run() {",
+      "    const cb = (x: number) => double(x);",
+      "    const a = first();",
+      "    return second(a, cb);",
+      "  }",
+      "}",
+      "",
+      "function double(x: number) {",
+      "  return x * 2;",
+      "}",
+      "",
+      "function first() {",
+      "  return 1;",
+      "}",
+      "",
+      "function second(a: number, cb: (x: number) => number) {",
+      "  return a;",
+      "}",
+      "",
+    ].join("\n");
+    fs.writeFileSync(fixturePath, source, "utf8");
+
+    await vscode.workspace
+      .getConfiguration("codegraph")
+      .update("outputDirectory", outDir, vscode.ConfigurationTarget.Global);
+
+    const doc = await vscode.workspace.openTextDocument(fixturePath);
+    const editor = await vscode.window.showTextDocument(doc);
+
+    // Cursor on the `run` method name (line 1): "  run() {".
+    const entryPosition = new vscode.Position(1, 3);
+    await waitForDefinition(doc.uri, entryPosition, 90000);
+    editor.selection = new vscode.Selection(entryPosition, entryPosition);
+
+    await vscode.commands.executeCommand("codegraph.makeGraph");
+
+    const manifestPath = findGraphJson(outDir);
+    assert.ok(manifestPath, `graph.json not found under ${outDir}`);
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    const defNames = new Set(
+      manifest.definitions.map((d: { name: string }) => d.name)
+    );
+
+    for (const name of ["double", "first", "second"]) {
+      assert.ok(
+        defNames.has(name),
+        `expected '${name}' among definitions, got [${[...defNames].join(
+          ", "
+        )}]`
+      );
+    }
+
+    // The entry method makes three resolvable calls, so its placement should
+    // emit three forward edges (all anchored at their call sites).
+    const entryPlacement = `${manifest.entryDefinitionId}@0`;
+    const forwardFromEntry = manifest.edges.filter(
+      (e: { from: string; recursion?: boolean }) =>
+        e.from === entryPlacement && !e.recursion
+    );
+    assert.strictEqual(
+      forwardFromEntry.length,
+      3,
+      `expected 3 forward edges from the method entry, got ${forwardFromEntry.length}`
+    );
+  });
 });

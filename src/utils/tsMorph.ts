@@ -3,13 +3,17 @@ import type { TSMorphFunctionNode } from "types/index";
 
 export const getTsMorphNodeFunctionName = (node: TSMorphFunctionNode) => {
   let name: string | undefined;
-  if (node instanceof ArrowFunction || !node.getName) {
+  // ConstructorDeclaration has no getName(); ArrowFunctions get their name from
+  // an enclosing `const x = () => …`. Everything else (functions, methods,
+  // accessors) names itself directly.
+  const getName = "getName" in node ? node.getName.bind(node) : undefined;
+  if (node instanceof ArrowFunction || !getName) {
     const declarationParent = node.getParentIfKind(
       SyntaxKind.VariableDeclaration
     );
     name = declarationParent && declarationParent.getName();
   } else {
-    name = node.getName();
+    name = getName();
   }
 
   return name || "Anonymous";

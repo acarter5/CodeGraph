@@ -6,6 +6,10 @@ import {
   FunctionDeclaration,
   FunctionExpression,
   ArrowFunction,
+  MethodDeclaration,
+  ConstructorDeclaration,
+  GetAccessorDeclaration,
+  SetAccessorDeclaration,
 } from "ts-morph";
 
 import { MESSAGES } from "src/constants/index";
@@ -19,7 +23,11 @@ export type { LineColumnFinder } from "line-column";
 export type TSMorphFunctionNode =
   | FunctionDeclaration
   | FunctionExpression
-  | ArrowFunction;
+  | ArrowFunction
+  | MethodDeclaration
+  | ConstructorDeclaration
+  | GetAccessorDeclaration
+  | SetAccessorDeclaration;
 
 // One call this node makes — a call expression inside the node's code. Carries
 // the call site so we can anchor a connector at the precise call token: `row`/
