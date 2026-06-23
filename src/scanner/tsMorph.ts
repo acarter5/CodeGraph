@@ -3,6 +3,10 @@ import {
   FunctionDeclaration,
   FunctionExpression,
   ArrowFunction,
+  MethodDeclaration,
+  ConstructorDeclaration,
+  GetAccessorDeclaration,
+  SetAccessorDeclaration,
   SyntaxKind,
 } from "ts-morph";
 
@@ -79,6 +83,10 @@ export default class ScannerTsMorph extends Scanner {
   }
 
   // TODO: clean this up
+  // TODO(position-based-node-lookup): this structural re-match (looksLike)
+  // exists only to recover real source positions for the unpositioned snippet
+  // node. Looking the node up by position in the file AST removes the need for
+  // it entirely — see TODO.md.
   private _findPositionedFunctionNode() {
     const { unpostitionedFunctionNode, fileNode } = this;
 
@@ -124,6 +132,14 @@ export default class ScannerTsMorph extends Scanner {
       return node as FunctionExpression;
     } else if (node instanceof ArrowFunction) {
       return node as ArrowFunction;
+    } else if (node instanceof MethodDeclaration) {
+      return node as MethodDeclaration;
+    } else if (node instanceof ConstructorDeclaration) {
+      return node as ConstructorDeclaration;
+    } else if (node instanceof GetAccessorDeclaration) {
+      return node as GetAccessorDeclaration;
+    } else if (node instanceof SetAccessorDeclaration) {
+      return node as SetAccessorDeclaration;
     } else {
       return null;
     }
