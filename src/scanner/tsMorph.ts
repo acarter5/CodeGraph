@@ -9,6 +9,12 @@ import {
   SetAccessorDeclaration,
   SyntaxKind,
 } from "ts-morph";
+import {
+  buildImportModuleMap,
+  baseIdentifierName,
+  isExternalCallee,
+  looksLike,
+} from "src/utils/tsMorph";
 
 import Scanner from "./index";
 
@@ -16,7 +22,6 @@ import lineColumn = require("line-column");
 import { ExcludeNullish } from "../utils";
 // @ts-expect-error
 import type { LineColumnFinder } from "line-column";
-import { looksLike } from "src/utils/tsMorph";
 import type { TSMorphFunctionNode } from "types/index";
 
 export default class ScannerTsMorph extends Scanner {
@@ -25,6 +30,11 @@ export default class ScannerTsMorph extends Scanner {
   // The callee identifier text per call, index-aligned with
   // callExpressionLocations — its length sizes the call-site rect downstream.
   callExpressionNames: string[];
+  // Whether each call is "provably external" — its receiver is imported from a
+  // bare (node_modules) module specifier, or is a JS builtin. Index-aligned
+  // with the arrays above. The Builder skips these: no definition lookup, no
+  // FindDefinitionFail node, no connector (see builder/index.ts).
+  callExpressionExternal: boolean[];
   constructor(
     unpostitionedFunctionNode: TSMorphFunctionNode,
     fileNode: SourceFile,
@@ -36,39 +46,58 @@ export default class ScannerTsMorph extends Scanner {
     const callExpressions = this._getCallExpressions();
     this.callExpressionLocations = callExpressions.map((c) => c.location);
     this.callExpressionNames = callExpressions.map((c) => c.name);
+    this.callExpressionExternal = callExpressions.map((c) => c.isExternal);
   }
 
-  private _getCallExpressions(): { location: LineColumnFinder; name: string }[] {
-    const { postitionedFunctionNode, targetFileCode } = this;
+  private _getCallExpressions(): {
+    location: LineColumnFinder;
+    name: string;
+    isExternal: boolean;
+  }[] {
+    const { postitionedFunctionNode, targetFileCode, fileNode } = this;
 
     if (!postitionedFunctionNode) {
       return [];
     }
 
+    // localName -> module specifier (e.g. "proxyChain" -> "proxy-chain").
+    const importModules = buildImportModuleMap(fileNode);
+
     const callExpressionNodes = postitionedFunctionNode.getDescendantsOfKind(
       SyntaxKind.CallExpression
     );
 
-    const tsMorphCallees = callExpressionNodes.map((callExpressionNode) =>
-      callExpressionNode.getFirstChild()?.getKind() ===
-      SyntaxKind.PropertyAccessExpression
-        ? callExpressionNode
-            .getFirstChild()
-            ?.getLastChildByKind(SyntaxKind.Identifier)
-        : callExpressionNode.getFirstChild()
-    );
-    const callExpressions = tsMorphCallees
-      .map((tsMorphCallee) =>
-        tsMorphCallee
-          ? {
-              location: lineColumn(targetFileCode, tsMorphCallee.getStart()),
-              name: tsMorphCallee.getText(),
-            }
-          : null
-      )
+    const callExpressions = callExpressionNodes
+      .map((callExpressionNode) => {
+        const callee = callExpressionNode.getFirstChild();
+        // The callee identifier used for location/name/definition lookup: for a
+        // property access (`a.b()`) it's the method name `b`, else the callee.
+        const tsMorphCallee =
+          callee?.getKind() === SyntaxKind.PropertyAccessExpression
+            ? callee.getLastChildByKind(SyntaxKind.Identifier)
+            : callee;
+
+        if (!tsMorphCallee) {
+          return null;
+        }
+
+        // The receiver's leftmost identifier (`a` in `a.b.c()`) classifies the
+        // call as external. null when the receiver isn't a bare identifier
+        // (e.g. `new Proxy().find()` — a method on an instance).
+        const isExternal = isExternalCallee(
+          baseIdentifierName(callee),
+          importModules
+        );
+
+        return {
+          location: lineColumn(targetFileCode, tsMorphCallee.getStart()),
+          name: tsMorphCallee.getText(),
+          isExternal,
+        };
+      })
       .filter(ExcludeNullish);
 
-    if (callExpressions.length !== tsMorphCallees.length) {
+    if (callExpressions.length !== callExpressionNodes.length) {
       throw new Error("problem finding callee in call expression");
     }
 

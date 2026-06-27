@@ -65,7 +65,8 @@ function isFailureKind(kind: ManifestNodeKind): boolean {
   return (
     kind === "findDefinitionFail" ||
     kind === "parseFail" ||
-    kind === "positionFail"
+    kind === "positionFail" ||
+    kind === "notAFunction"
   );
 }
 
@@ -75,7 +76,11 @@ function bgColorForKind(kind: ManifestNodeKind): RGB {
   if (kind === "findDefinitionFail") {
     return { r: 0.99, g: 0.91, b: 0.91 };
   }
-  if (kind === "parseFail" || kind === "positionFail") {
+  if (
+    kind === "parseFail" ||
+    kind === "positionFail" ||
+    kind === "notAFunction"
+  ) {
     return { r: 0.99, g: 0.97, b: 0.86 };
   }
   return { r: 0.95, g: 0.95, b: 0.96 };
@@ -85,7 +90,11 @@ function strokeColorForKind(kind: ManifestNodeKind): RGB {
   if (kind === "findDefinitionFail") {
     return { r: 0.85, g: 0.3, b: 0.3 };
   }
-  if (kind === "parseFail" || kind === "positionFail") {
+  if (
+    kind === "parseFail" ||
+    kind === "positionFail" ||
+    kind === "notAFunction"
+  ) {
     return { r: 0.85, g: 0.65, b: 0.2 };
   }
   return { r: 0.8, g: 0.8, b: 0.82 };
@@ -98,6 +107,8 @@ function titleForKind(kind: ManifestNodeKind): string {
       return "Definition not found";
     case "parseFail":
       return "Parse failed";
+    case "notAFunction":
+      return "Not a function (value)";
     case "positionFail":
       return "Could not locate in file";
     default:
@@ -105,7 +116,11 @@ function titleForKind(kind: ManifestNodeKind): string {
   }
 }
 
-async function renderGraph({ manifest, images }: RenderGraphMessage) {
+async function renderGraph({
+  manifest,
+  images,
+  hideFailures,
+}: RenderGraphMessage) {
   // Decode each definition's PNG into an image hash once. `bytes` is null when
   // the UI couldn't downscale it within Figma's 4096px limit; createImage can
   // also still reject — either way leave it out and render a labeled box below.
@@ -122,6 +137,25 @@ async function renderGraph({ manifest, images }: RenderGraphMessage) {
   }
 
   const defById = new Map(manifest.definitions.map((d) => [d.id, d]));
+
+  // When the "Hide failure nodes" toggle is on, drop every failure-kind
+  // placement and any edge touching one, so the graph shows only the resolved
+  // call flow. Filter once here; the rest of the render works off these.
+  const isHiddenDef = (definitionId: string): boolean => {
+    const def = defById.get(definitionId);
+    return !!hideFailures && !!def && isFailureKind(def.kind);
+  };
+  const hiddenPlacementIds = new Set(
+    manifest.placements
+      .filter((p) => isHiddenDef(p.definitionId))
+      .map((p) => p.id)
+  );
+  const placements = manifest.placements.filter(
+    (p) => !hiddenPlacementIds.has(p.id)
+  );
+  const edges = manifest.edges.filter(
+    (e) => !hiddenPlacementIds.has(e.from) && !hiddenPlacementIds.has(e.to)
+  );
 
   // Labels for no-image boxes need a loaded font; tolerate failure (just skip
   // the text rather than aborting the whole render).
@@ -223,8 +257,8 @@ async function renderGraph({ manifest, images }: RenderGraphMessage) {
   // Forward, call-site-anchored edges get a chained connector with a vertical
   // lane in the column gap they cross. Size each column gap (dagre ranksep) so
   // the busiest corridor's lanes fit without overlapping.
-  const placementIds = new Set(manifest.placements.map((p) => p.id));
-  const forwardEdges = manifest.edges.filter(
+  const placementIds = new Set(placements.map((p) => p.id));
+  const forwardEdges = edges.filter(
     (e) =>
       !e.recursion &&
       e.callSiteRect &&
@@ -255,14 +289,14 @@ async function renderGraph({ manifest, images }: RenderGraphMessage) {
   g.setDefaultEdgeLabel(() => ({}));
 
   const sizeByPlacement = new Map<string, { w: number; h: number }>();
-  for (const placement of manifest.placements) {
+  for (const placement of placements) {
     const size = sizeOf(placement.definitionId);
     sizeByPlacement.set(placement.id, size);
     g.setNode(placement.id, { width: size.w, height: size.h });
   }
 
   const seenLayoutEdges = new Set<string>();
-  for (const edge of manifest.edges) {
+  for (const edge of edges) {
     if (edge.recursion) {
       continue;
     }
@@ -286,7 +320,7 @@ async function renderGraph({ manifest, images }: RenderGraphMessage) {
   const columnRightX = new Map<number, number>();
   const centerYByPlacement = new Map<string, number>();
   const placementsByLevel = new Map<number, ManifestPlacement[]>();
-  for (const placement of manifest.placements) {
+  for (const placement of placements) {
     const lvl = levelOf(placement.id);
     const arr = placementsByLevel.get(lvl) ?? [];
     arr.push(placement);
@@ -314,7 +348,7 @@ async function renderGraph({ manifest, images }: RenderGraphMessage) {
     columnRightX.set(lvl, leftX + maxW);
   }
 
-  for (const placement of manifest.placements) {
+  for (const placement of placements) {
     const size = sizeByPlacement.get(placement.id) as { w: number; h: number };
     const x = columnLeftX.get(levelOf(placement.id)) ?? 0;
     const cy = centerYByPlacement.get(placement.id) ?? 0;
@@ -370,7 +404,7 @@ async function renderGraph({ manifest, images }: RenderGraphMessage) {
     };
 
     let colorIndex = 0;
-    for (const edge of manifest.edges) {
+    for (const edge of edges) {
       const from = nodeByPlacement.get(edge.from);
       const to = nodeByPlacement.get(edge.to);
       if (!from || !to) {
@@ -462,8 +496,8 @@ async function renderGraph({ manifest, images }: RenderGraphMessage) {
 
   figma.ui.postMessage({
     type: "done",
-    placements: manifest.placements.length,
-    edges: manifest.edges.length,
+    placements: placements.length,
+    edges: edges.length,
   });
-  figma.notify(`CodeGraph: rendered ${manifest.placements.length} boxes`);
+  figma.notify(`CodeGraph: rendered ${placements.length} boxes`);
 }

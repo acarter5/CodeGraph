@@ -1,5 +1,10 @@
 import { Project, SyntaxKind, Node, SourceFile } from "ts-morph";
 import { ExcludeNullish } from "../utils/index";
+import {
+  baseIdentifierName,
+  buildImportModuleMap,
+  isExternalCallee,
+} from "../utils/tsMorph";
 import CodeGraphParser from "./index";
 import type { TSMorphFunctionNode } from "types/index";
 
@@ -84,11 +89,81 @@ export default class CodeGraphParserTsMorph extends CodeGraphParser {
     fileProject.createSourceFile("file.ts", targetFileCode);
     const fileSourceFile = fileProject.getSourceFiles()[0];
 
+    // When there's no function-like node, the definition is a value, not a
+    // function (e.g. `const db = knex(configuration)` — a knex instance, or an
+    // object map for dynamic dispatch). Flag the sub-case where that value is
+    // initialized from a node_modules callee, so the Builder can skip it like
+    // any other node_modules call instead of surfacing a failure node.
+    const externalValueDefinition = functionDefinition
+      ? false
+      : this._isExternalValueDefinition(funcSourceFile, fileSourceFile);
+
     return {
       unPositionedFunctionNode: functionDefinition as
         | TSMorphFunctionNode
         | undefined,
       fileNode: fileSourceFile,
+      externalValueDefinition,
     };
+  }
+
+  // True when the definition is a value whose initializer is `<callee>(…)` /
+  // `new <callee>` and that callee traces to a bare (node_modules) import or a
+  // JS builtin — i.e. the "function" is really a value backed by a library
+  // (e.g. `const db = knex(config)`, a knex instance).
+  private _isExternalValueDefinition(
+    snippet: SourceFile,
+    fileSourceFile: SourceFile
+  ): boolean {
+    const importModules = buildImportModuleMap(fileSourceFile);
+
+    // The provider may hand us the whole `const x = knex(config)` declaration…
+    const inlineDeclaration = snippet.getFirstDescendantByKind(
+      SyntaxKind.VariableDeclaration
+    );
+    if (
+      this._isExternalInitializer(
+        inlineDeclaration?.getInitializer(),
+        importModules
+      )
+    ) {
+      return true;
+    }
+
+    // …or just the variable name (e.g. the range of `db`). In that case resolve
+    // the declaration in the full file and inspect its initializer.
+    const identifier = snippet.getFirstDescendantByKind(SyntaxKind.Identifier);
+    if (identifier) {
+      const fileDeclaration = fileSourceFile.getVariableDeclaration(
+        identifier.getText()
+      );
+      if (
+        this._isExternalInitializer(
+          fileDeclaration?.getInitializer(),
+          importModules
+        )
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private _isExternalInitializer(
+    initializer: Node | undefined,
+    importModules: Map<string, string>
+  ): boolean {
+    if (
+      !initializer ||
+      (!Node.isCallExpression(initializer) &&
+        !Node.isNewExpression(initializer))
+    ) {
+      return false;
+    }
+    return isExternalCallee(
+      baseIdentifierName(initializer.getExpression()),
+      importModules
+    );
   }
 }

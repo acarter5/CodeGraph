@@ -60,6 +60,9 @@ export enum FailReason {
   parseFail = "parser did not return node",
   findDefinitionFail = "could not find definition for call expression",
   positionFail = "could not position function AST Node",
+  // Resolved + parsed fine, but the definition isn't a function — it's a value
+  // (e.g. `const db = knex(config)`) or an object map for dynamic dispatch.
+  notAFunction = "definition is a value, not a function",
 }
 
 export type FindDefinitionFail = {
@@ -93,7 +96,22 @@ export type ParseFail = {
   name: string;
 };
 
-export type FailNode = FindDefinitionFail | ParseFail | PositionFail;
+export type NotAFunctionFail = {
+  id: string;
+  failure: true;
+  incomingCalls: string[];
+  code: string;
+  uri: vscode.Uri;
+  range: vscode.Range;
+  failReason: FailReason.notAFunction;
+  name: string;
+};
+
+export type FailNode =
+  | FindDefinitionFail
+  | ParseFail
+  | PositionFail
+  | NotAFunctionFail;
 
 export type EntryNodeRawData = {
   targetFunctionRange: vscode.Range;
@@ -151,7 +169,8 @@ export type ManifestNodeKind =
   | "function"
   | "parseFail"
   | "positionFail"
-  | "findDefinitionFail";
+  | "findDefinitionFail"
+  | "notAFunction";
 
 // A point in a source file, mirroring `vscode.Position`: zero-based `line` and
 // `character` (column). Plain JSON — we flatten `vscode.Position` into this so

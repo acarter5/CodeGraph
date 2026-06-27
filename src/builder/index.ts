@@ -39,6 +39,7 @@ export default class Builder {
     [FailReason.findDefinitionFail]: "Find Definition Fail",
     [FailReason.parseFail]: "Parse Fail",
     [FailReason.positionFail]: "Postion Fail",
+    [FailReason.notAFunction]: "Not a Function",
   };
 
   constructor(entry: EntryNodeRawData, view: View, nodeMap: NodeMap) {
@@ -49,7 +50,7 @@ export default class Builder {
 
   public async buildNodeMap(
     nodeData: NodeRawData | undefined
-  ): Promise<MapNode | FailNode> {
+  ): Promise<MapNode | FailNode | null> {
     let isEntry: boolean;
     let targetFunctionRange: vscode.Range;
     let targetFunctionUri: vscode.Uri;
@@ -74,12 +75,27 @@ export default class Builder {
       targetFunctionCode,
       targetFileCode
     );
-    const { unPositionedFunctionNode, fileNode } = await parser.parse();
+    const { unPositionedFunctionNode, fileNode, externalValueDefinition } =
+      await parser.parse();
 
     if (!unPositionedFunctionNode || !fileNode) {
-      console.error("parser did not return node");
+      // The definition is a value, not a function. If that value is backed by a
+      // node_modules callee (e.g. `const db = knex(config)`), skip it like any
+      // other node_modules call — no node, no connector. (Never for the entry:
+      // the user selected it, so they should see why it didn't graph.)
+      if (externalValueDefinition && fileNode && !isEntry) {
+        return null;
+      }
+
+      // `!fileNode` is a genuine parse failure; otherwise the file parsed fine
+      // but had no function-like node at the definition (a value / dynamic
+      // dispatch) — label that distinctly, not as a parse failure.
+      const failReason = fileNode
+        ? FailReason.notAFunction
+        : FailReason.parseFail;
+      console.error("parser did not return a function node", { failReason });
       const failNode = this._buildFailureNode({
-        failReason: FailReason.parseFail,
+        failReason,
         uri: targetFunctionUri,
         range: targetFunctionRange,
         code: targetFunctionCode,
@@ -112,8 +128,12 @@ export default class Builder {
       targetFileCode
     );
 
-    const { postitionedFunctionNode, callExpressionLocations, callExpressionNames } =
-      scanner;
+    const {
+      postitionedFunctionNode,
+      callExpressionLocations,
+      callExpressionNames,
+      callExpressionExternal,
+    } = scanner;
 
     if (!postitionedFunctionNode) {
       console.error("unable to find positionedFunctionNode");
@@ -188,7 +208,16 @@ export default class Builder {
     await view.loadPage(mapNode.id);
 
     let callDefinitionLocations = (await Promise.all(
-      callExpressionLocations.map((lineColumnFinder) => {
+      callExpressionLocations.map((lineColumnFinder, idx) => {
+        // Provably external (bare import / builtin): don't bother the definition
+        // provider — it would resolve to node_modules (skipped anyway) or, in
+        // untyped JS, return nothing and become a noisy FindDefinitionFail.
+        if (callExpressionExternal[idx]) {
+          return Promise.resolve([] as (
+            | vscode.Location
+            | vscode.LocationLink
+          )[]);
+        }
         // `line-column` is 1-based for both line and col; `vscode.Position` is
         // 0-based for both, so subtract 1 from each. Passing `col` unconverted
         // landed the cursor one char into the identifier, which is why
@@ -209,14 +238,18 @@ export default class Builder {
 
     let attempts = 1;
 
-    // The VS Code API sometimes doesn't find the function definition on the first try. So we attempt it a few times.
+    // The VS Code API sometimes doesn't find the function definition on the
+    // first try, so we retry — but only for non-external calls (external ones
+    // are intentionally left empty and handled as skips below).
     while (
-      callDefinitionLocations.some((def) => !def.length) &&
+      callDefinitionLocations.some(
+        (def, i) => !def.length && !callExpressionExternal[i]
+      ) &&
       attempts <= maxDefinitionFindAttempts
     ) {
       callDefinitionLocations = await Promise.all(
         callDefinitionLocations.map(async (def, idx) => {
-          return def.length
+          return def.length || callExpressionExternal[idx]
             ? def
             : vscode.commands.executeCommand(
                 "vscode.executeDefinitionProvider",
@@ -243,15 +276,26 @@ export default class Builder {
       | vscode.Location
       | vscode.LocationLink
       | FindDefinitionFail
-    )[] = callDefinitionLocations.map((def, idx) =>
-      def.length
+      | null
+    )[] = callDefinitionLocations.map((def, idx) => {
+      // Provably external — skip entirely (no node, no connector), like a
+      // resolved node_modules call.
+      if (callExpressionExternal[idx]) {
+        return null;
+      }
+      return def.length
         ? def[0]
-        : this._buildFailureNode({
-            failReason: FailReason.findDefinitionFail,
-            callExpressionLocation: callExpressionLocations[idx],
-            parentId: mapNode.id,
-          })
-    );
+        : this._buildFailureNode(
+            {
+              failReason: FailReason.findDefinitionFail,
+              callExpressionLocation: callExpressionLocations[idx],
+              parentId: mapNode.id,
+            },
+            // Label the fail with the call text (e.g. "taskLogger.info") so the
+            // node is identifiable instead of an anonymous "Find Definition Fail".
+            callExpressionNames[idx]
+          );
+    });
 
     await view.waitForNodeSnapshot();
     /*
@@ -269,7 +313,10 @@ export default class Builder {
     try {
       let idx = 0;
       for (let locOrFail of verifiedCallDefinitionLocations) {
-        if ("failure" in locOrFail) {
+        if (locOrFail === null) {
+          // Provably external call — no node, no connector.
+          childNodes[idx] = null;
+        } else if ("failure" in locOrFail) {
           if (!nodeMap.has(locOrFail.id)) {
             nodeMap.set(locOrFail.id, locOrFail);
           } else {
@@ -435,6 +482,9 @@ export default class Builder {
     if (node.failReason === FailReason.positionFail) {
       return "positionFail";
     }
+    if (node.failReason === FailReason.notAFunction) {
+      return "notAFunction";
+    }
     return "findDefinitionFail";
   }
 
@@ -502,7 +552,7 @@ export default class Builder {
     args:
       | {
           code: string;
-          failReason: FailReason.parseFail;
+          failReason: FailReason.parseFail | FailReason.notAFunction;
           uri: vscode.Uri;
           range: vscode.Range;
           parentId: string | undefined;
@@ -518,20 +568,33 @@ export default class Builder {
           range: vscode.Range;
           parentId: string | undefined;
           code: string;
-        }
+        },
+    // For findDefinitionFail nodes, the call text (e.g. "taskLogger.info") used
+    // as the node's label. Kept out of `args` so the node id (hashed from args)
+    // is unchanged — only the display name varies per call site.
+    callExpressionName?: string
   ): FailNode {
     const { parentId, ...rest } = args;
+    // parseFail / notAFunction hash on the file+range only (not parentId) so a
+    // value/unparseable definition referenced from many call sites dedups to a
+    // single node.
     const id =
-      args.failReason === FailReason.parseFail
+      args.failReason === FailReason.parseFail ||
+      args.failReason === FailReason.notAFunction
         ? objectHash.sha1(rest)
         : objectHash.sha1(args);
+
+    const name =
+      args.failReason === FailReason.findDefinitionFail && callExpressionName
+        ? callExpressionName
+        : this.failNodeNames[args.failReason];
 
     return {
       ...rest,
       id,
       failure: true as true,
       incomingCalls: parentId ? [parentId] : [],
-      name: this.failNodeNames[args.failReason],
+      name,
     };
   }
 }
