@@ -6,7 +6,8 @@ export type ManifestNodeKind =
   | "function"
   | "parseFail"
   | "positionFail"
-  | "findDefinitionFail";
+  | "findDefinitionFail"
+  | "notAFunction";
 
 export interface ManifestImage {
   file: string;
@@ -63,4 +64,7 @@ export interface RenderGraphMessage {
   // bytes is null when the UI couldn't downscale the PNG to within Figma's
   // image-size limit — the sandbox then draws a labeled "image too large" box.
   images: { definitionId: string; bytes: Uint8Array | null }[];
+  // When true, the sandbox omits failure-kind definitions (findDefinitionFail /
+  // parseFail / positionFail / notAFunction) and any connectors touching them.
+  hideFailures?: boolean;
 }

@@ -1,13 +1,15 @@
 <script>
 	// Import global CSS from the Figma Svelte boilerplate (color/spacing vars).
 	import { GlobalCSS } from 'figma-plugin-ds-svelte';
-	import { Button, Input, Label } from 'figma-plugin-ds-svelte';
+	import { Button, Input, Label, Checkbox } from 'figma-plugin-ds-svelte';
 
 	// The graph.json URL the VS Code extension copies to the clipboard when it
 	// finishes a build (e.g. http://localhost:3939/<graph>/graph.json).
 	let url = '';
 	let status = 'Paste the graph URL copied by the CodeGraph extension.';
 	let busy = false;
+	// Omit failure nodes (and connectors to them) from the rendered graph.
+	let hideFailures = false;
 
 	// figma.createImage rejects images larger than 4096px in either dimension
 	// ("Image is too large"). Snapshots of long functions (captured at scale 3)
@@ -112,7 +114,7 @@
 
 			status = 'Rendering…';
 			parent.postMessage(
-				{ pluginMessage: { type: 'render-graph', manifest, images } },
+				{ pluginMessage: { type: 'render-graph', manifest, images, hideFailures } },
 				'*'
 			);
 		} catch (err) {
@@ -150,6 +152,10 @@
 	/>
 
 	<Label>{status}</Label>
+
+	<Checkbox bind:checked={hideFailures} class="mb-xxsmall">
+		Hide failure nodes
+	</Checkbox>
 
 	<div class="flex p-xxsmall mb-xsmall">
 		<Button on:click={cancel} variant="secondary" class="mr-xsmall">Close</Button>
