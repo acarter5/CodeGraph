@@ -204,6 +204,9 @@ export type ManifestDefinition = {
   kind: ManifestNodeKind;
   image: SnapshotMeta | null; // null when no snapshot exists (e.g. findDefinitionFail)
   source: { uri: string; range: ManifestRange } | null;
+  // Workspace-relative path of the definition's source file (e.g. `src/foo.ts`),
+  // shown as a header above the snapshot. null when the node has no source uri.
+  path: string | null;
 };
 
 // A box actually drawn — one per (definition, level). The same definition can

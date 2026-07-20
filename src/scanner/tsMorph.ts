@@ -15,6 +15,7 @@ import {
   isExternalCallee,
   looksLike,
 } from "src/utils/tsMorph";
+import { isExternalModuleSpecifier } from "src/utils/moduleResolution";
 
 import Scanner from "./index";
 
@@ -38,9 +39,15 @@ export default class ScannerTsMorph extends Scanner {
   constructor(
     unpostitionedFunctionNode: TSMorphFunctionNode,
     fileNode: SourceFile,
-    targetFileCode: string
+    targetFileCode: string,
+    containingFilePath?: string
   ) {
-    super(unpostitionedFunctionNode, fileNode, targetFileCode);
+    super(
+      unpostitionedFunctionNode,
+      fileNode,
+      targetFileCode,
+      containingFilePath
+    );
 
     this.postitionedFunctionNode = this._findPositionedFunctionNode();
     const callExpressions = this._getCallExpressions();
@@ -54,7 +61,8 @@ export default class ScannerTsMorph extends Scanner {
     name: string;
     isExternal: boolean;
   }[] {
-    const { postitionedFunctionNode, targetFileCode, fileNode } = this;
+    const { postitionedFunctionNode, targetFileCode, fileNode, containingFilePath } =
+      this;
 
     if (!postitionedFunctionNode) {
       return [];
@@ -62,6 +70,15 @@ export default class ScannerTsMorph extends Scanner {
 
     // localName -> module specifier (e.g. "proxyChain" -> "proxy-chain").
     const importModules = buildImportModuleMap(fileNode);
+
+    // Resolve specifiers for real when we know the file's path, so first-party
+    // `paths`/`baseUrl` aliases and workspace packages aren't mistaken for
+    // node_modules and silently dropped. Without a path we can only fall back
+    // to the specifier-shape heuristic (isExternalCallee's default).
+    const isExternalSpecifier = containingFilePath
+      ? (specifier: string) =>
+          isExternalModuleSpecifier(specifier, containingFilePath)
+      : undefined;
 
     const callExpressionNodes = postitionedFunctionNode.getDescendantsOfKind(
       SyntaxKind.CallExpression
@@ -86,7 +103,8 @@ export default class ScannerTsMorph extends Scanner {
         // (e.g. `new Proxy().find()` — a method on an instance).
         const isExternal = isExternalCallee(
           baseIdentifierName(callee),
-          importModules
+          importModules,
+          isExternalSpecifier
         );
 
         return {

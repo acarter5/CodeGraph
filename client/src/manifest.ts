@@ -22,6 +22,8 @@ export interface ManifestDefinition {
   kind: ManifestNodeKind;
   image: ManifestImage | null;
   source: { uri: string; range: unknown } | null;
+  // Workspace-relative path of the source file, shown above the snapshot.
+  path: string | null;
 }
 
 export interface ManifestPlacement {

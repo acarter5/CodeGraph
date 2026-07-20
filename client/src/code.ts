@@ -30,6 +30,23 @@ const CORRIDOR_MARGIN = 28;
 const FALLBACK_WIDTH = 260;
 const FALLBACK_HEIGHT = 88;
 const LABEL_FONT: FontName = { family: "Inter", style: "Medium" };
+// Snapshot boxes are wrapped in a colored "card": padding around the image plus
+// a header band at the top for the file path. The card fill is the definition's
+// connector color so each snapshot visually matches the lines pointing to it.
+const CARD_PAD = 10;
+const HEADER_H = 22;
+// Right-side header slot for the duplicate badge (`<glyph> <index>/<count>`).
+const BADGE_W = 72;
+
+// Per-definition glyphs, cycled like the colors. A definition's glyph is shared
+// across all of its snapshots, so two boxes are the same function iff they show
+// the same glyph — duplicates are matchable at a glance even when two different
+// definitions happen to land on the same (cycled) color. Basic geometric shapes
+// (U+25xx) render reliably across fonts.
+const DEFINITION_GLYPHS: string[] = [
+  "◆", "●", "▲", "★", "■", "▼", "◀", "▶",
+  "◇", "○", "△", "☆", "□", "▽", "◁", "▷",
+];
 
 // Distinct connector colors, cycled per edge so each call→definition line is
 // easy to trace.
@@ -59,6 +76,13 @@ figma.ui.onmessage = async (msg: RenderGraphMessage | { type: string }) => {
     figma.closePlugin();
   }
 };
+
+// A placement id is `${definitionId}@${level}`; the definitionId (an object-hash)
+// contains no `@`, so everything before the last `@` is the definition id.
+function defIdOf(placementId: string): string {
+  const at = placementId.lastIndexOf("@");
+  return at === -1 ? placementId : placementId.slice(0, at);
+}
 
 // The three failure kinds (vs. a plain function that just has no snapshot).
 function isFailureKind(kind: ManifestNodeKind): boolean {
@@ -138,6 +162,23 @@ async function renderGraph({
 
   const defById = new Map(manifest.definitions.map((d) => [d.id, d]));
 
+  // One color per definition (cycled in stable definition order). This is the
+  // single source of truth for both connector color and snapshot background, so
+  // every line into a definition, and every box of that definition, agree.
+  const colorByDefinition = new Map<string, RGB>();
+  manifest.definitions.forEach((d, i) => {
+    colorByDefinition.set(d.id, CONNECTOR_COLORS[i % CONNECTOR_COLORS.length]);
+  });
+  const colorForDef = (definitionId: string): RGB =>
+    colorByDefinition.get(definitionId) ?? CONNECTOR_COLORS[0];
+
+  // One glyph per definition (same stable order as the colors), shared across
+  // all of that definition's snapshots.
+  const glyphByDefinition = new Map<string, string>();
+  manifest.definitions.forEach((d, i) => {
+    glyphByDefinition.set(d.id, DEFINITION_GLYPHS[i % DEFINITION_GLYPHS.length]);
+  });
+
   // When the "Hide failure nodes" toggle is on, drop every failure-kind
   // placement and any edge touching one, so the graph shows only the resolved
   // call flow. Filter once here; the rest of the render works off these.
@@ -157,6 +198,23 @@ async function renderGraph({
     (e) => !hiddenPlacementIds.has(e.from) && !hiddenPlacementIds.has(e.to)
   );
 
+  // Instance numbering for the duplicate badge: how many times each definition
+  // appears in the rendered graph, and this placement's 1-based index among them
+  // (ordered by level). A box's badge reads `<glyph> <index>/<count>`.
+  const placementsByDefinition = new Map<string, ManifestPlacement[]>();
+  for (const p of placements) {
+    const arr = placementsByDefinition.get(p.definitionId) ?? [];
+    arr.push(p);
+    placementsByDefinition.set(p.definitionId, arr);
+  }
+  const instanceCountByDef = new Map<string, number>();
+  const instanceIndexByPlacement = new Map<string, number>();
+  for (const [defId, arr] of placementsByDefinition) {
+    arr.sort((a, b) => a.level - b.level);
+    instanceCountByDef.set(defId, arr.length);
+    arr.forEach((p, i) => instanceIndexByPlacement.set(p.id, i + 1));
+  }
+
   // Labels for no-image boxes need a loaded font; tolerate failure (just skip
   // the text rather than aborting the whole render).
   let fontLoaded = false;
@@ -172,15 +230,26 @@ async function renderGraph({
   // use the small fallback so the box stays readable instead of a giant blank.
   const sizeOf = (definitionId: string) => {
     const image = defById.get(definitionId)?.image ?? null;
-    return image && imageHashByDef.has(definitionId)
-      ? {
-          w: image.width / (image.scale || 1),
-          h: image.height / (image.scale || 1),
-        }
-      : { w: FALLBACK_WIDTH, h: FALLBACK_HEIGHT };
+    if (image && imageHashByDef.has(definitionId)) {
+      // Card = image + surrounding padding + a header band for the file path.
+      const imgW = image.width / (image.scale || 1);
+      const imgH = image.height / (image.scale || 1);
+      return {
+        w: imgW + 2 * CARD_PAD,
+        h: imgH + HEADER_H + 2 * CARD_PAD,
+      };
+    }
+    return { w: FALLBACK_WIDTH, h: FALLBACK_HEIGHT };
   };
 
   const nodeByPlacement = new Map<string, SceneNode>();
+  // Absolute geometry of each snapshot's inner image rect (card minus the header
+  // + padding). Call-site connector anchoring is normalized to the image, so the
+  // caller side must use this, not the outer card.
+  const imageBoxByPlacement = new Map<
+    string,
+    { x: number; y: number; w: number; h: number }
+  >();
   const created: SceneNode[] = [];
 
   // Builds a box (+ optional label) at a top-left position; returns the rect.
@@ -202,7 +271,66 @@ async function renderGraph({
 
     const hash = imageHashByDef.get(placement.definitionId);
     if (hash) {
-      rect.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: hash }];
+      // Colored card: fill = the definition's color (matches its connectors),
+      // a white file-path header, and the snapshot image inset below it.
+      rect.fills = [
+        { type: "SOLID", color: colorForDef(placement.definitionId) },
+      ];
+      created.push(rect);
+
+      if (fontLoaded) {
+        // Header band: file path on the left, a duplicate badge on the right.
+        // The badge is `<glyph> <index>/<count>` — the glyph (shared by every
+        // copy of this definition) identifies which boxes are the same function,
+        // and the index/count says which copy this is and how many exist.
+        const glyph = glyphByDefinition.get(placement.definitionId) ?? "";
+        const idx = instanceIndexByPlacement.get(placement.id) ?? 1;
+        const count = instanceCountByDef.get(placement.definitionId) ?? 1;
+
+        const label = figma.createText();
+        label.fontName = LABEL_FONT;
+        label.fontSize = 11;
+        label.textAutoResize = "NONE";
+        label.characters =
+          def && def.path ? def.path : def ? def.name : placement.definitionId;
+        label.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+        label.resize(Math.max(1, w - 2 * CARD_PAD - BADGE_W - 8), HEADER_H);
+        label.x = x + CARD_PAD;
+        label.y = y + CARD_PAD;
+        created.push(label);
+
+        const badge = figma.createText();
+        badge.fontName = LABEL_FONT;
+        badge.fontSize = 12;
+        badge.textAutoResize = "NONE";
+        badge.characters = `${glyph} ${idx}/${count}`;
+        badge.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+        badge.textAlignHorizontal = "RIGHT";
+        badge.resize(BADGE_W, HEADER_H);
+        badge.x = x + w - CARD_PAD - BADGE_W;
+        badge.y = y + CARD_PAD;
+        created.push(badge);
+      }
+
+      const imgX = x + CARD_PAD;
+      const imgY = y + CARD_PAD + HEADER_H;
+      const imgW = w - 2 * CARD_PAD;
+      const imgH = h - HEADER_H - 2 * CARD_PAD;
+      const image = figma.createRectangle();
+      image.resize(Math.max(1, imgW), Math.max(1, imgH));
+      image.x = imgX;
+      image.y = imgY;
+      image.cornerRadius = 2;
+      image.name = (def ? def.name : placement.definitionId) + " (snapshot)";
+      image.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: hash }];
+      created.push(image);
+      imageBoxByPlacement.set(placement.id, {
+        x: imgX,
+        y: imgY,
+        w: imgW,
+        h: imgH,
+      });
+      return rect;
     } else {
       const kind = (def ? def.kind : "function") as ManifestNodeKind;
       // The manifest had a snapshot for this def but we have no hash → the
@@ -370,10 +498,21 @@ async function renderGraph({
       arr.push(e);
       corridorGroups.set(lvl, arr);
     }
+    // Call-site rects are normalized to the snapshot image, not the outer card,
+    // so anchor against the image geometry; fall back to the card for nodes that
+    // have no inner image (e.g. a fail-node caller).
+    const geomOf = (placementId: string) => {
+      const box = imageBoxByPlacement.get(placementId);
+      if (box) {
+        return box;
+      }
+      const n = nodeByPlacement.get(placementId) as SceneNode;
+      return { x: n.x, y: n.y, w: n.width, h: n.height };
+    };
     const callStartY = (e: ManifestEdge) => {
-      const f = nodeByPlacement.get(e.from) as SceneNode;
+      const f = geomOf(e.from);
       const r = e.callSiteRect as { y: number; height: number };
-      return f.y + (r.y + r.height / 2) * f.height;
+      return f.y + (r.y + r.height / 2) * f.h;
     };
     const stagger = new Map<ManifestEdge, { i: number; n: number }>();
     for (const arr of corridorGroups.values()) {
@@ -403,22 +542,22 @@ async function renderGraph({
       return c;
     };
 
-    let colorIndex = 0;
     for (const edge of edges) {
       const from = nodeByPlacement.get(edge.from);
       const to = nodeByPlacement.get(edge.to);
       if (!from || !to) {
         continue;
       }
-      // (1) Distinct color per edge so each call→definition line is traceable.
-      const color = CONNECTOR_COLORS[colorIndex % CONNECTOR_COLORS.length];
-      colorIndex += 1;
+      // (1) Color by destination definition so every line into the same def (and
+      // that def's snapshot background) shares one color.
+      const color = colorForDef(defIdOf(edge.to));
 
       const rect = edge.callSiteRect;
       if (rect && !edge.recursion) {
-        // (2) Start inside the caller's snapshot, just past the call token.
-        const startX = from.x + (rect.x + rect.width) * from.width;
-        const startY = from.y + (rect.y + rect.height / 2) * from.height;
+        // (2) Start inside the caller's snapshot image, just past the call token.
+        const fb = geomOf(edge.from);
+        const startX = fb.x + (rect.x + rect.width) * fb.w;
+        const startY = fb.y + (rect.y + rect.height / 2) * fb.h;
         const endY = to.y + to.height / 2;
 
         // Lane within the column gap. The corridor spans from this column's
@@ -426,7 +565,7 @@ async function renderGraph({
         // right; last (i=n-1) → furthest left.
         const s = stagger.get(edge) ?? { i: 0, n: 1 };
         const lvl = levelOf(edge.from);
-        const corridorL = columnRightX.get(lvl) ?? from.x + from.width;
+        const corridorL = columnRightX.get(lvl) ?? fb.x + fb.w;
         const corridorR = columnLeftX.get(lvl + 1) ?? to.x;
         const innerL = corridorL + CORRIDOR_MARGIN;
         const innerR = corridorR - CORRIDOR_MARGIN;
@@ -465,9 +604,10 @@ async function renderGraph({
       connector.strokes = [{ type: "SOLID", color }];
       connector.strokeWeight = 2;
       if (rect) {
-        const callY = from.y + (rect.y + rect.height / 2) * from.height;
+        const fb = geomOf(edge.from);
+        const callY = fb.y + (rect.y + rect.height / 2) * fb.h;
         connector.connectorStart = {
-          position: { x: from.x + rect.x * from.width, y: callY },
+          position: { x: fb.x + rect.x * fb.w, y: callY },
         };
       } else {
         connector.connectorStart = {

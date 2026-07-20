@@ -132,6 +132,13 @@ suite("makeGraph integration", () => {
       assert.match(d.image.file, /\.png$/);
       const onDisk = path.join(path.dirname(manifestPath), d.image.file);
       assert.ok(fs.existsSync(onDisk), `image not on disk: ${d.image.file}`);
+      // A snapshotted def has a source file, so it carries a relative path that
+      // the renderer shows as the snapshot header.
+      assert.strictEqual(
+        typeof (d as { path?: unknown }).path,
+        "string",
+        "snapshotted definition should carry a relative path"
+      );
     }
 
     // The fixture's `entry` calls `helper` once, so there should be exactly one

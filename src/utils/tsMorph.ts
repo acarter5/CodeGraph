@@ -81,18 +81,25 @@ export function baseIdentifierName(callee: Node | undefined): string | null {
   return node && Node.isIdentifier(node) ? node.getText() : null;
 }
 
-// Is `base` an external callee — imported from a bare (node_modules) module, or
-// a JS builtin (unless a local import shadows the name)?
+// Is `base` an external callee — imported from a node_modules module, or a JS
+// builtin (unless a local import shadows the name)?
+//
+// `isExternalSpecifier` decides whether a module specifier is external. It
+// defaults to the specifier-shape heuristic, which misclassifies first-party
+// tsconfig `paths`/`baseUrl` aliases and workspace packages as external —
+// callers that know the containing file should pass the real module resolver
+// (`isExternalModuleSpecifier` in ./moduleResolution) instead.
 export function isExternalCallee(
   base: string | null,
-  importModules: Map<string, string>
+  importModules: Map<string, string>,
+  isExternalSpecifier: (specifier: string) => boolean = isBareModuleSpecifier
 ): boolean {
   if (base === null) {
     return false;
   }
   const moduleSpecifier = importModules.get(base);
   return moduleSpecifier !== undefined
-    ? isBareModuleSpecifier(moduleSpecifier)
+    ? isExternalSpecifier(moduleSpecifier)
     : JS_BUILTINS.has(base);
 }
 

@@ -125,7 +125,8 @@ export default class Builder {
     const scanner = new ScannerTsMorph(
       unPositionedFunctionNode,
       fileNode,
-      targetFileCode
+      targetFileCode,
+      targetFunctionUri.fsPath
     );
 
     const {
@@ -395,6 +396,7 @@ export default class Builder {
         kind: this._manifestKind(node),
         image: snapshotMeta.get(id) ?? null,
         source: this._manifestSource(node),
+        path: this._manifestRelativePath(node),
       });
     });
 
@@ -486,6 +488,15 @@ export default class Builder {
       return "notAFunction";
     }
     return "findDefinitionFail";
+  }
+
+  // Workspace-relative path of the node's source file, for the snapshot header.
+  // null when the node has no uri (e.g. findDefinitionFail).
+  private _manifestRelativePath(node: MapNode | FailNode): string | null {
+    if (!("uri" in node)) {
+      return null;
+    }
+    return vscode.workspace.asRelativePath(node.uri, false);
   }
 
   private _manifestSource(
