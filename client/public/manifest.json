@@ -2,12 +2,13 @@
   "name": "CodeGraph",
   "api": "1.0.0",
   "main": "code.js",
-  "editorType": ["figjam", "figma"],
+  "editorType": ["figjam"],
+  "documentAccess": "dynamic-page",
   "ui": "index.html",
   "networkAccess": {
     "allowedDomains": [
       "http://localhost:3939"
     ],
-    "reasoning": "Fetches the generated code graph (graph.json + snapshot PNGs) from the CodeGraph VS Code extension's local server. If you change the codegraph.serverPort setting, update this URL to match. (Figma rejects IP addresses like 127.0.0.1 here, so use localhost.)"
+    "reasoning": "CodeGraph renders a code-flow diagram produced by the CodeGraph extension for VS Code. The extension writes the diagram (a graph.json manifest plus PNG snapshots of your code) to a folder in your project and serves it from a local server on your own machine, bound to 127.0.0.1. This plugin fetches those files from that local address to draw the diagram in FigJam. No data is sent to any remote server, and nothing leaves your computer. Note: this port is fixed in the plugin manifest, so the codegraph.serverPort setting must be left at its default of 3939."
   }
 }

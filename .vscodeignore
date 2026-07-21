@@ -1,12 +1,23 @@
 .vscode/**
 .vscode-test/**
+.claude/**
 out/**
-node_modules/**
+# Anchored `node_modules/**` only matches the root copy — client/node_modules
+# (~3.9k files) shipped in the .vsix without the `**/` prefix.
+**/node_modules/**
 src/**
+# The FigJam plugin is published separately to the Figma Community; none of it
+# belongs in the extension package.
+client/**
 .gitignore
 .yarnrc
 webpack.config.js
 vsc-extension-quickstart.md
+package-lock.json
+# Internal working docs — README/CHANGELOG are the published ones.
+CLAUDE.md
+BUGS.md
+TODO.md
 **/tsconfig.json
 **/.eslintrc.json
 **/*.map

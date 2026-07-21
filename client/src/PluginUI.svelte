@@ -18,6 +18,48 @@
 	// from the manifest's logical dimensions, so only resolution drops.
 	const MAX_IMAGE_DIM = 4096;
 
+	// The port is baked into manifest.json's networkAccess.allowedDomains, and
+	// Figma has no wildcard syntax for ports — so a URL on any other port is
+	// blocked before the request leaves the iframe, surfacing as an opaque
+	// "Failed to fetch". Check it up front and say so plainly instead.
+	const REQUIRED_PORT = '3939';
+
+	// Returns a human-readable problem with the pasted URL, or null if it looks
+	// usable. Deliberately permissive — only rejects what we know will fail.
+	function describeUrlProblem(raw) {
+		let parsed;
+		try {
+			parsed = new URL(raw);
+		} catch (err) {
+			return "That doesn't look like a URL. Run “Codegraph: Make a codegraph” in VS Code — it copies the graph URL to your clipboard.";
+		}
+		if (parsed.hostname !== 'localhost') {
+			// 127.0.0.1 is the same server, but Figma rejects IP addresses in
+			// allowedDomains, so the request would be blocked.
+			const hint =
+				parsed.hostname === '127.0.0.1'
+					? ' Use “localhost” instead of 127.0.0.1 — Figma only allows named hosts.'
+					: '';
+			return `CodeGraph can only load graphs from localhost.${hint}`;
+		}
+		if (parsed.port !== REQUIRED_PORT) {
+			return `This plugin can only reach port ${REQUIRED_PORT}, but the URL uses port ${parsed.port || '80'}. Reset the codegraph.serverPort setting in VS Code to ${REQUIRED_PORT} and make the graph again.`;
+		}
+		return null;
+	}
+
+	// A dead/unreachable server surfaces as a TypeError from fetch with no
+	// status — indistinguishable from a blocked domain at this layer. Either way
+	// the actionable advice is the same: check that the extension is running.
+	function isNetworkError(err) {
+		return err instanceof TypeError;
+	}
+
+	const SERVER_UNREACHABLE =
+		`Couldn't reach the CodeGraph server at localhost:${REQUIRED_PORT}. ` +
+		'Open your project in VS Code and run “Codegraph: Make a codegraph” — ' +
+		'the extension starts the server and copies a fresh URL to your clipboard.';
+
 	// Decode via an <img> element rather than createImageBitmap — the latter can
 	// return a blank/transparent bitmap for very large images in the Figma
 	// iframe (which is exactly the root/entry snapshot), yielding a silently
@@ -74,14 +116,29 @@
 			status = 'Enter the graph.json URL first.';
 			return;
 		}
+		const urlProblem = describeUrlProblem(url.trim());
+		if (urlProblem) {
+			status = urlProblem;
+			return;
+		}
 		busy = true;
 		try {
 			status = 'Fetching manifest…';
 			const res = await fetch(url);
+			if (res.status === 404) {
+				throw new Error(
+					'The server is running, but that graph is gone (404). Make the graph again in VS Code to get a fresh URL.'
+				);
+			}
 			if (!res.ok) {
 				throw new Error(`manifest HTTP ${res.status}`);
 			}
 			const manifest = await res.json();
+			if (!manifest || !Array.isArray(manifest.definitions)) {
+				throw new Error(
+					"That URL didn't return a CodeGraph manifest. Make sure it ends in /graph.json."
+				);
+			}
 
 			// Images are siblings of graph.json; resolve each by filename.
 			const base = url.replace(/graph\.json(\?.*)?$/, '');
@@ -118,7 +175,11 @@
 				'*'
 			);
 		} catch (err) {
-			status = 'Error: ' + (err && err.message ? err.message : String(err));
+			status = isNetworkError(err)
+				? SERVER_UNREACHABLE
+				: err && err.message
+				? err.message
+				: String(err);
 			busy = false;
 		}
 	}

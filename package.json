@@ -46,7 +46,6 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/babel__core": "^7.20.0",
     "@types/glob": "^8.1.0",
     "@types/line-column": "^1.0.0",
     "@types/mocha": "^10.0.1",
@@ -66,20 +65,10 @@
     "webpack-cli": "^5.0.1"
   },
   "dependencies": {
-    "-": "^0.0.1",
-    "@babel/core": "^7.21.0",
-    "@babel/parser": "^7.21.2",
-    "@babel/plugin-transform-typescript": "^7.21.0",
-    "@babel/preset-env": "^7.20.2",
-    "@babel/preset-typescript": "^7.21.0",
-    "@babel/traverse": "^7.21.2",
-    "@babel/types": "^7.21.2",
-    "core-js-compat": "^3.29.0",
     "dom-to-image-more": "^2.15.0",
     "line-column": "^1.0.2",
     "object-hash": "^3.0.0",
     "prismjs": "^1.30.0",
-    "save": "^2.9.0",
     "ts-morph": "^17.0.1"
   }
 }
