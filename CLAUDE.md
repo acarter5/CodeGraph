@@ -87,6 +87,34 @@ Snapshots are syntax-highlighted **images of code**, produced entirely inside th
 
 **There used to be a clipboard-based pipeline** (`Reader.prepForPageLoad` ran `editor.action.clipboardCopyWithSyntaxHighlightingAction`, the webview pasted, dom-to-image captured). It was ripped out — see `BUGS.md` #20 for why. If you're tempted to bring it back, read that entry first.
 
+### Scoping the graph (include/exclude paths)
+
+Two settings let the user restrict which function definitions get graphed, so the graph can be confined to (or kept out of) parts of the codebase:
+
+- **`codegraph.includePaths`** (`string[]`, default `[]`) — when non-empty, a definition is graphed **only** if it lives under one of these.
+- **`codegraph.excludePaths`** (`string[]`, default `[]`) — definitions under these are skipped. **Exclude wins over include.**
+
+Users set these like any VS Code setting — Settings UI (search "codegraph"), or `settings.json`. Because the entries are project-specific (paths/aliases relative to the workspace and its `tsconfig.json`), workspace/folder-scoped `.vscode/settings.json` is the natural home:
+
+```jsonc
+{
+  "codegraph.includePaths": ["src/core", "@shared"],
+  "codegraph.excludePaths": ["src/legacy", "@vendor/*"]
+}
+```
+
+Each entry may be a **workspace-relative directory** (`src/services`), an **absolute path**, a **tsconfig `paths` alias** (`@shared`, `@shared/*`, or a subpath like `@/services`), or a **workspace-package name**. Aliases must match a `paths` key in the project's `tsconfig.json`.
+
+**How it works.** `extension.ts` reads the settings at command-invocation time (so edits take effect on the next run, no reload) and hands a `PathFilter` (`src/utils/pathFilter.ts`) to `Builder`. Matching runs on each **resolved definition's real file path**, at the same two points in `builder/index.ts` that drop `node_modules` (now folded into `_isSkippedDefinition`). Key behaviors:
+
+- **`node_modules` is always excluded**, independent of these settings; include/exclude only scopes first-party code.
+- **The entry function the user selected is always graphed** — the filter only prunes recursed children (and, transitively, their subtrees).
+- A filtered-out call is a **silent drop** — no box, no connector, recursion stops there — exactly like a `node_modules` call. (Not a labelled box; that was considered and declined.)
+- **Aliases resolve in the candidate definition's own tsconfig context** (reusing `getCompilerOptions`/`findTsConfig` from `moduleResolution.ts`), so a monorepo with per-package aliases resolves each definition correctly. `PathFilter` turns every entry into absolute directory prefixes and caches them per (tsconfig, entry).
+- An **empty filter is a no-op** (`isActive === false`) — zero overhead when unconfigured — and a typo'd/non-existent entry resolves to no prefix, so it matches (and drops) nothing rather than pruning everything.
+
+Covered by `src/test/suite/pathFilter.test.ts`.
+
 ## Code map
 
 - `src/extension.ts` — activation + command registration
@@ -97,7 +125,7 @@ Snapshots are syntax-highlighted **images of code**, produced entirely inside th
 - `src/view/` — `View`: webview lifecycle + snapshot capture + PNG file writing
 - `src/server/` — `CodeGraphServer`: loopback static server that hosts `graph.json` + PNGs for the FigJam plugin to fetch
 - `src/types/` — shared types (`MapNode`, `FailNode`, `NodeMap`, `GraphNode`, `FailReason`)
-- `src/utils/` — `ExcludeNullish`, `looksLike` AST matchers, `waitFor`, fail-node type guards
+- `src/utils/` — `ExcludeNullish`, `looksLike` AST matchers, `waitFor`, fail-node type guards, `moduleResolution` (tsconfig-aware external/alias resolution), `pathFilter` (`PathFilter` include/exclude scoping — see "Scoping the graph")
 - `src/constants/` — webview placeholders + message enum
 - `resources/` — `index.html` / `app.js` / `app.css` for the snapshot webview
 - `client/` — the FigJam plugin (Svelte + Rollup). Self-contained: `src/code.ts` (plugin sandbox / Figma API), `src/PluginUI.svelte` + `src/main.js` (plugin UI iframe), `public/manifest.json` (Figma plugin manifest). Build with `npm run build` (or `npm run dev`) **from inside `client/`**.

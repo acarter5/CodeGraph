@@ -5,6 +5,7 @@ import CodeGraphParserTsMorph from "../parser/tsMorph";
 import ReaderVSCode from "../reader/vscode";
 import ScannerTsMorph from "../scanner/tsMorph";
 import View from "../view/index";
+import PathFilter from "../utils/pathFilter";
 
 import { getTsMorphNodeFunctionName } from "src/utils/tsMorph";
 import type {
@@ -35,6 +36,10 @@ export default class Builder {
   entry: EntryNodeRawData;
   entryNodeId: string | undefined;
   view: View;
+  // Scopes which resolved definitions get graphed (include/exclude paths).
+  // A no-op filter (no settings) grafts everything, so this is always safe to
+  // consult. See utils/pathFilter.ts.
+  pathFilter: PathFilter;
   failNodeNames = {
     [FailReason.findDefinitionFail]: "Find Definition Fail",
     [FailReason.parseFail]: "Parse Fail",
@@ -42,10 +47,17 @@ export default class Builder {
     [FailReason.notAFunction]: "Not a Function",
   };
 
-  constructor(entry: EntryNodeRawData, view: View, nodeMap: NodeMap) {
+  constructor(
+    entry: EntryNodeRawData,
+    view: View,
+    nodeMap: NodeMap,
+    pathFilter?: PathFilter
+  ) {
     this.nodeMap = nodeMap;
     this.entry = entry;
     this.view = view;
+    this.pathFilter =
+      pathFilter ?? new PathFilter({ include: [], exclude: [] });
   }
 
   public async buildNodeMap(
@@ -300,7 +312,7 @@ export default class Builder {
           }
           childNodes[idx] = locOrFail;
         } else if (locOrFail instanceof vscode.Location) {
-          if (locOrFail?.uri?.path.includes("node_modules")) {
+          if (this._isSkippedDefinition(locOrFail.uri)) {
             childNodes[idx] = null;
           } else {
             childNodes[idx] = await this.buildNodeMap({
@@ -310,7 +322,7 @@ export default class Builder {
             });
           }
         } else {
-          if (locOrFail?.targetUri?.path.includes("node_modules")) {
+          if (this._isSkippedDefinition(locOrFail.targetUri)) {
             childNodes[idx] = null;
           } else {
             childNodes[idx] = await this.buildNodeMap({
@@ -446,6 +458,19 @@ export default class Builder {
       placements,
       edges,
     };
+  }
+
+  /*
+    Whether a resolved definition should be dropped (no node, no connector,
+    recursion stops there). node_modules is always dropped; on top of that the
+    include/exclude path filter scopes which first-party definitions graph.
+    Both are silent drops, matching the existing node_modules behavior.
+  */
+  private _isSkippedDefinition(uri: vscode.Uri): boolean {
+    if (uri.path.includes("node_modules")) {
+      return true;
+    }
+    return !this.pathFilter.shouldGraphDefinition(uri.fsPath);
   }
 
   private _manifestKind(node: MapNode | FailNode): ManifestNodeKind {

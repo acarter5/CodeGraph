@@ -30,6 +30,22 @@
           "type": "number",
           "default": 3939,
           "markdownDescription": "Port for the local server that hosts `graph.json` and snapshot PNGs for the FigJam plugin to fetch. Bound to `127.0.0.1` only."
+        },
+        "codegraph.includePaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Restrict the graph to function definitions living under these directories/modules. When non-empty, a definition is graphed only if it lives under one of these (the selected entry function is always graphed). Entries may be workspace-relative directories (`src/services`), absolute paths, tsconfig `paths` aliases (`@shared`, `@shared/*`, `@/services`), or workspace-package names. `node_modules` is always excluded regardless. When empty, everything not in `#codegraph.excludePaths#` is included."
+        },
+        "codegraph.excludePaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Skip function definitions living under these directories/modules (no box, no connector; recursion stops there). Takes precedence over `#codegraph.includePaths#`. Entries may be workspace-relative directories (`src/legacy`), absolute paths, tsconfig `paths` aliases (`@vendor`, `@vendor/*`), or workspace-package names."
         }
       }
     }
