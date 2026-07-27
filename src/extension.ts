@@ -9,6 +9,7 @@ import Builder from "./builder/index";
 import { NodeMap } from "./types";
 import View from "./view/index";
 import CodeGraphServer from "./server/index";
+import PathFilter from "./utils/pathFilter";
 
 // Default port for the local server the FigJam plugin fetches from. Overridable
 // via the `codegraph.serverPort` setting.
@@ -82,13 +83,28 @@ export function activate(context: vscode.ExtensionContext) {
 
       const view = new View(context, nodeMap);
 
+      // Scope which resolved definitions get graphed. Entries may be
+      // workspace-relative dirs, absolute paths, tsconfig `paths` aliases, or
+      // workspace-package names. The workspace folder containing the selection
+      // bounds relative-path and tsconfig resolution.
+      const config = vscode.workspace.getConfiguration("codegraph");
+      const workspaceRoot =
+        vscode.workspace.getWorkspaceFolder(targetFunctionUri)?.uri.fsPath ??
+        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const pathFilter = new PathFilter({
+        include: config.get<string[]>("includePaths") ?? [],
+        exclude: config.get<string[]>("excludePaths") ?? [],
+        workspaceRoot,
+      });
+
       const builder = new Builder(
         {
           targetFunctionRange,
           targetFunctionUri,
         },
         view,
-        nodeMap
+        nodeMap,
+        pathFilter
       );
 
       // Recursively walk calls from the entry definition outward, snapshotting
