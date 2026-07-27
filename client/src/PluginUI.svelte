@@ -13,9 +13,10 @@
 
 	// figma.createImage rejects images larger than 4096px in either dimension
 	// ("Image is too large"). Snapshots of long functions (captured at scale 3)
-	// blow past that, so downscale oversized PNGs to fit before sending the
-	// bytes to the sandbox. Aspect ratio is preserved; the box is still sized
-	// from the manifest's logical dimensions, so only resolution drops.
+	// blow past that. Rather than downscale the whole thing to fit one image
+	// (which drops resolution — long functions became unreadable), we slice the
+	// snapshot into a grid of tiles each ≤ this limit and lay them back out to
+	// fill the same box, so every tile keeps the full capture resolution.
 	const MAX_IMAGE_DIM = 4096;
 
 	// The port is baked into manifest.json's networkAccess.allowedDomains, and
@@ -84,29 +85,57 @@
 		});
 	}
 
-	// Returns clean PNG bytes for figma.createImage, or throws if the image can't
-	// be processed (so the caller marks it failed rather than sending blank bytes).
-	//
-	// We ALWAYS re-encode through a canvas, not just when downscaling. Figma's
-	// createImage accepts the original dom-to-image PNGs (they get a hash) but
-	// renders them *blank*; round-tripping every image through canvas → toPng
-	// produces a normalized PNG Figma renders reliably. Downscale only when over
-	// the 4096px hard limit.
-	async function fitImageBytes(bytes) {
-		const img = await decodeImage(bytes);
-		const largest = Math.max(img.naturalWidth, img.naturalHeight);
-		const ratio = largest > MAX_IMAGE_DIM ? MAX_IMAGE_DIM / largest : 1;
-		const w = Math.max(1, Math.round(img.naturalWidth * ratio));
-		const h = Math.max(1, Math.round(img.naturalHeight * ratio));
+	// Re-encode one source-image sub-rectangle to clean PNG bytes via canvas.
+	// We ALWAYS go through a canvas (even for a single sub-tile), not just to
+	// crop. Figma's createImage accepts the original dom-to-image PNGs (they get
+	// a hash) but renders them *blank*; round-tripping through canvas → toBlob
+	// produces a normalized PNG Figma renders reliably.
+	async function encodeTile(img, sx, sy, sw, sh) {
 		const canvas = document.createElement('canvas');
-		canvas.width = w;
-		canvas.height = h;
-		canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+		canvas.width = sw;
+		canvas.height = sh;
+		canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
 		const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
 		if (!blob) {
 			throw new Error('canvas.toBlob returned null re-encoding image');
 		}
 		return new Uint8Array(await blob.arrayBuffer());
+	}
+
+	// Slice a PNG into a grid of tiles each ≤ MAX_IMAGE_DIM in both dimensions,
+	// so no single tile trips Figma's createImage limit and nothing is
+	// downscaled. Returns tiles with their normalized [0..1] position/size within
+	// the full image; the sandbox stacks them to fill the definition's box.
+	// Throws if the image can't be decoded (caller marks it failed).
+	async function fitImageTiles(bytes) {
+		const img = await decodeImage(bytes);
+		const W = img.naturalWidth;
+		const H = img.naturalHeight;
+		// Even split into the fewest tiles that each stay ≤ the limit, so we get
+		// roughly equal strips instead of a full tile plus a thin remainder.
+		const cols = Math.ceil(W / MAX_IMAGE_DIM);
+		const rows = Math.ceil(H / MAX_IMAGE_DIM);
+		const tileW = Math.ceil(W / cols);
+		const tileH = Math.ceil(H / rows);
+
+		const tiles = [];
+		for (let r = 0; r < rows; r++) {
+			const sy = r * tileH;
+			const sh = Math.min(tileH, H - sy);
+			for (let c = 0; c < cols; c++) {
+				const sx = c * tileW;
+				const sw = Math.min(tileW, W - sx);
+				const tileBytes = await encodeTile(img, sx, sy, sw, sh);
+				tiles.push({
+					bytes: tileBytes,
+					x: sx / W,
+					y: sy / H,
+					width: sw / W,
+					height: sh / H,
+				});
+			}
+		}
+		return tiles;
 	}
 
 	// The plugin sandbox (code.ts) has no `fetch`, so the UI iframe does all the
@@ -154,15 +183,15 @@
 					throw new Error(`image HTTP ${imgRes.status}: ${def.image.file}`);
 				}
 				const buf = await imgRes.arrayBuffer();
-				// A single oversized/undecodable image shouldn't blank-out or abort
-				// the whole render — send bytes:null so the sandbox draws a labeled
-				// "image too large" box for just that definition.
+				// A single undecodable image shouldn't blank-out or abort the whole
+				// render — send tiles:null so the sandbox draws a labeled "image too
+				// large" box for just that definition.
 				try {
-					const bytes = await fitImageBytes(new Uint8Array(buf));
-					images.push({ definitionId: def.id, bytes });
+					const tiles = await fitImageTiles(new Uint8Array(buf));
+					images.push({ definitionId: def.id, tiles });
 				} catch (imgErr) {
 					failedImages += 1;
-					images.push({ definitionId: def.id, bytes: null });
+					images.push({ definitionId: def.id, tiles: null });
 				}
 			}
 			if (failedImages > 0) {

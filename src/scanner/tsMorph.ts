@@ -1,19 +1,8 @@
-import {
-  SourceFile,
-  FunctionDeclaration,
-  FunctionExpression,
-  ArrowFunction,
-  MethodDeclaration,
-  ConstructorDeclaration,
-  GetAccessorDeclaration,
-  SetAccessorDeclaration,
-  SyntaxKind,
-} from "ts-morph";
+import { SyntaxKind } from "ts-morph";
 import {
   buildImportModuleMap,
   baseIdentifierName,
   isExternalCallee,
-  looksLike,
 } from "src/utils/tsMorph";
 import { isExternalModuleSpecifier } from "src/utils/moduleResolution";
 
@@ -23,10 +12,10 @@ import lineColumn = require("line-column");
 import { ExcludeNullish } from "../utils";
 // @ts-expect-error
 import type { LineColumnFinder } from "line-column";
+import type { SourceFile } from "ts-morph";
 import type { TSMorphFunctionNode } from "types/index";
 
 export default class ScannerTsMorph extends Scanner {
-  postitionedFunctionNode: TSMorphFunctionNode | null;
   callExpressionLocations: LineColumnFinder[];
   // The callee identifier text per call, index-aligned with
   // callExpressionLocations — its length sizes the call-site rect downstream.
@@ -37,19 +26,13 @@ export default class ScannerTsMorph extends Scanner {
   // FindDefinitionFail node, no connector (see builder/index.ts).
   callExpressionExternal: boolean[];
   constructor(
-    unpostitionedFunctionNode: TSMorphFunctionNode,
+    positionedFunctionNode: TSMorphFunctionNode,
     fileNode: SourceFile,
     targetFileCode: string,
     containingFilePath?: string
   ) {
-    super(
-      unpostitionedFunctionNode,
-      fileNode,
-      targetFileCode,
-      containingFilePath
-    );
+    super(positionedFunctionNode, fileNode, targetFileCode, containingFilePath);
 
-    this.postitionedFunctionNode = this._findPositionedFunctionNode();
     const callExpressions = this._getCallExpressions();
     this.callExpressionLocations = callExpressions.map((c) => c.location);
     this.callExpressionNames = callExpressions.map((c) => c.name);
@@ -61,12 +44,12 @@ export default class ScannerTsMorph extends Scanner {
     name: string;
     isExternal: boolean;
   }[] {
-    const { postitionedFunctionNode, targetFileCode, fileNode, containingFilePath } =
-      this;
-
-    if (!postitionedFunctionNode) {
-      return [];
-    }
+    const {
+      positionedFunctionNode,
+      targetFileCode,
+      fileNode,
+      containingFilePath,
+    } = this;
 
     // localName -> module specifier (e.g. "proxyChain" -> "proxy-chain").
     const importModules = buildImportModuleMap(fileNode);
@@ -80,7 +63,7 @@ export default class ScannerTsMorph extends Scanner {
           isExternalModuleSpecifier(specifier, containingFilePath)
       : undefined;
 
-    const callExpressionNodes = postitionedFunctionNode.getDescendantsOfKind(
+    const callExpressionNodes = positionedFunctionNode.getDescendantsOfKind(
       SyntaxKind.CallExpression
     );
 
@@ -121,83 +104,4 @@ export default class ScannerTsMorph extends Scanner {
 
     return callExpressions;
   }
-
-  // Not every Node kind exposes getStructure (e.g. ArrowFunction), so guard it.
-  private _getStructure(node: any) {
-    return typeof node?.getStructure === "function"
-      ? node.getStructure()
-      : undefined;
-  }
-
-  // TODO: clean this up
-  // TODO(position-based-node-lookup): this structural re-match (looksLike)
-  // exists only to recover real source positions for the unpositioned snippet
-  // node. Looking the node up by position in the file AST removes the need for
-  // it entirely — see TODO.md.
-  private _findPositionedFunctionNode() {
-    const { unpostitionedFunctionNode, fileNode } = this;
-
-    const unpostitionedFunctionNodeStructure = this._getStructure(
-      unpostitionedFunctionNode
-    );
-
-    if (!unpostitionedFunctionNodeStructure) {
-      throw Error("cannot get unpositioned node structure");
-    }
-
-    let postitionedFunctionNode;
-
-    fileNode.forEachDescendant((fileNodeDescendant) => {
-      if (
-        fileNodeDescendant.getKind() === unpostitionedFunctionNode?.getKind()
-      ) {
-        const fileNodeDescendantStructure =
-          this._getStructure(fileNodeDescendant);
-        const isMatch = looksLike(
-          fileNodeDescendantStructure,
-          unpostitionedFunctionNodeStructure
-        );
-
-        if (isMatch) {
-          postitionedFunctionNode = fileNodeDescendant;
-          return;
-        }
-      }
-    });
-
-    const typedPositionedFunctionNode = this._getTypedPostionedFunctionNode(
-      postitionedFunctionNode
-    );
-
-    return typedPositionedFunctionNode;
-  }
-
-  private _getTypedPostionedFunctionNode(node: any) {
-    if (node instanceof FunctionDeclaration) {
-      return node as FunctionDeclaration;
-    } else if (node instanceof FunctionExpression) {
-      return node as FunctionExpression;
-    } else if (node instanceof ArrowFunction) {
-      return node as ArrowFunction;
-    } else if (node instanceof MethodDeclaration) {
-      return node as MethodDeclaration;
-    } else if (node instanceof ConstructorDeclaration) {
-      return node as ConstructorDeclaration;
-    } else if (node instanceof GetAccessorDeclaration) {
-      return node as GetAccessorDeclaration;
-    } else if (node instanceof SetAccessorDeclaration) {
-      return node as SetAccessorDeclaration;
-    } else {
-      return null;
-    }
-  }
 }
-
-// let postitionedFunctionTargetNode
-// try {
-//   console.log('[hf]', unPositionedFunctionNode.getKind())
-//   postitionedFunctionTargetNode = fileNode.getDescendantsOfKind(unPositionedFunctionNode?.getKind()).filter((node) => node.getName() === unPositionedFunctionNode?.getName())[0]
-// } catch(error) {
-//   debugger
-//   console.error('error finding positioned target node', {error})
-// }

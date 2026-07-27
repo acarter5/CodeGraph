@@ -2,7 +2,10 @@ import type { SourceFile } from "ts-morph";
 import type { TSMorphFunctionNode } from "types/index";
 
 export default class Scanner {
-  unpostitionedFunctionNode: TSMorphFunctionNode;
+  // Already positioned — a real node in the full-file AST (found by position in
+  // the Parser), so the Scanner can go straight to collecting call expressions
+  // without any structural re-match.
+  positionedFunctionNode: TSMorphFunctionNode;
   fileNode: SourceFile;
   targetFileCode: string;
   // Real on-disk path of the scanned file. `fileNode` is parsed from a string
@@ -11,12 +14,12 @@ export default class Scanner {
   containingFilePath: string | undefined;
 
   constructor(
-    unpostitionedFunctionNode: TSMorphFunctionNode,
+    positionedFunctionNode: TSMorphFunctionNode,
     fileNode: SourceFile,
     targetFileCode: string,
     containingFilePath?: string
   ) {
-    this.unpostitionedFunctionNode = unpostitionedFunctionNode;
+    this.positionedFunctionNode = positionedFunctionNode;
     this.fileNode = fileNode;
     this.targetFileCode = targetFileCode;
     this.containingFilePath = containingFilePath;

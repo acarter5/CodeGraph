@@ -15,6 +15,16 @@ import type {
   RenderGraphMessage,
 } from "./manifest";
 
+// A decoded snapshot tile: its Figma image hash plus its normalized [0..1]
+// position/size within the full snapshot image, used to place it in the box.
+type RenderedTile = {
+  hash: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 figma.showUI(__html__, { themeColors: true, width: 340, height: 260 });
 
 // Vertical gap between boxes in a column (dagre nodesep).
@@ -145,18 +155,28 @@ async function renderGraph({
   images,
   hideFailures,
 }: RenderGraphMessage) {
-  // Decode each definition's PNG into an image hash once. `bytes` is null when
-  // the UI couldn't downscale it within Figma's 4096px limit; createImage can
-  // also still reject — either way leave it out and render a labeled box below.
-  const imageHashByDef = new Map<string, string>();
-  for (const { definitionId, bytes } of images) {
-    if (!bytes) {
+  // Decode each definition's snapshot tiles into image hashes, keeping each
+  // tile's normalized position so we can lay them back out to fill the box.
+  // `tiles` is null when the UI couldn't decode the PNG at all; createImage can
+  // also still reject a tile — either way leave the whole def out and render a
+  // labeled box below (all-or-nothing: a half-rendered snapshot is worse than a
+  // clearly-flagged one).
+  const imageTilesByDef = new Map<string, RenderedTile[]>();
+  for (const { definitionId, tiles } of images) {
+    if (!tiles || tiles.length === 0) {
       continue;
     }
     try {
-      imageHashByDef.set(definitionId, figma.createImage(bytes).hash);
+      const rendered: RenderedTile[] = tiles.map((tile) => ({
+        hash: figma.createImage(tile.bytes).hash,
+        x: tile.x,
+        y: tile.y,
+        width: tile.width,
+        height: tile.height,
+      }));
+      imageTilesByDef.set(definitionId, rendered);
     } catch (err) {
-      // too large / unsupported — falls through to the failed-image box
+      // a tile too large / unsupported — falls through to the failed-image box
     }
   }
 
@@ -230,7 +250,7 @@ async function renderGraph({
   // use the small fallback so the box stays readable instead of a giant blank.
   const sizeOf = (definitionId: string) => {
     const image = defById.get(definitionId)?.image ?? null;
-    if (image && imageHashByDef.has(definitionId)) {
+    if (image && imageTilesByDef.has(definitionId)) {
       // Card = image + surrounding padding + a header band for the file path.
       const imgW = image.width / (image.scale || 1);
       const imgH = image.height / (image.scale || 1);
@@ -269,8 +289,8 @@ async function renderGraph({
     rect.cornerRadius = 4;
     rect.name = def ? def.name : placement.definitionId;
 
-    const hash = imageHashByDef.get(placement.definitionId);
-    if (hash) {
+    const tiles = imageTilesByDef.get(placement.definitionId);
+    if (tiles && tiles.length > 0) {
       // Colored card: fill = the definition's color (matches its connectors),
       // a white file-path header, and the snapshot image inset below it.
       rect.fills = [
@@ -316,14 +336,26 @@ async function renderGraph({
       const imgY = y + CARD_PAD + HEADER_H;
       const imgW = w - 2 * CARD_PAD;
       const imgH = h - HEADER_H - 2 * CARD_PAD;
-      const image = figma.createRectangle();
-      image.resize(Math.max(1, imgW), Math.max(1, imgH));
-      image.x = imgX;
-      image.y = imgY;
-      image.cornerRadius = 2;
-      image.name = (def ? def.name : placement.definitionId) + " (snapshot)";
-      image.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: hash }];
-      created.push(image);
+      // One rectangle per tile, positioned by the tile's normalized rect so the
+      // tiles abut exactly and together fill the image box. Each tile's aspect
+      // ratio matches its rect (it's a crop at the same scale), so FILL fills it
+      // with no distortion. Kept at full capture resolution — no downscaling.
+      const name = (def ? def.name : placement.definitionId) + " (snapshot)";
+      tiles.forEach((tile, i) => {
+        const image = figma.createRectangle();
+        image.resize(
+          Math.max(1, tile.width * imgW),
+          Math.max(1, tile.height * imgH)
+        );
+        image.x = imgX + tile.x * imgW;
+        image.y = imgY + tile.y * imgH;
+        image.cornerRadius = 2;
+        image.name = tiles.length > 1 ? `${name} [${i + 1}/${tiles.length}]` : name;
+        image.fills = [
+          { type: "IMAGE", scaleMode: "FILL", imageHash: tile.hash },
+        ];
+        created.push(image);
+      });
       imageBoxByPlacement.set(placement.id, {
         x: imgX,
         y: imgY,

@@ -58,14 +58,29 @@ export interface GraphManifest {
   edges: ManifestEdge[];
 }
 
+// One tile of a snapshot image. A tall/wide snapshot is sliced into a grid of
+// tiles each ≤ Figma's 4096px createImage limit, so it renders at full capture
+// resolution instead of being downscaled to fit one image. `x/y/width/height`
+// are the tile's normalized [0..1] position/size within the full snapshot, so
+// the sandbox can lay the tiles back out to exactly fill the image box.
+export interface ImageTile {
+  bytes: Uint8Array;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 // What the UI iframe posts to the plugin sandbox: the manifest plus each
-// definition's PNG bytes (fetched in the iframe, where `fetch` lives).
+// definition's snapshot, sliced into tiles (fetched + sliced in the iframe,
+// where `fetch` and canvas live).
 export interface RenderGraphMessage {
   type: "render-graph";
   manifest: GraphManifest;
-  // bytes is null when the UI couldn't downscale the PNG to within Figma's
-  // image-size limit — the sandbox then draws a labeled "image too large" box.
-  images: { definitionId: string; bytes: Uint8Array | null }[];
+  // tiles is null when the UI couldn't decode/slice the PNG at all — the sandbox
+  // then draws a labeled "image too large" box. Otherwise it's ≥1 tile that
+  // together tile the definition's image box at full capture resolution.
+  images: { definitionId: string; tiles: ImageTile[] | null }[];
   // When true, the sandbox omits failure-kind definitions (findDefinitionFail /
   // parseFail / positionFail / notAFunction) and any connectors touching them.
   hideFailures?: boolean;
