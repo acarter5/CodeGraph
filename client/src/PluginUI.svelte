@@ -13,10 +13,53 @@
 
 	// figma.createImage rejects images larger than 4096px in either dimension
 	// ("Image is too large"). Snapshots of long functions (captured at scale 3)
-	// blow past that, so downscale oversized PNGs to fit before sending the
-	// bytes to the sandbox. Aspect ratio is preserved; the box is still sized
-	// from the manifest's logical dimensions, so only resolution drops.
+	// blow past that. Rather than downscale the whole thing to fit one image
+	// (which drops resolution — long functions became unreadable), we slice the
+	// snapshot into a grid of tiles each ≤ this limit and lay them back out to
+	// fill the same box, so every tile keeps the full capture resolution.
 	const MAX_IMAGE_DIM = 4096;
+
+	// The port is baked into manifest.json's networkAccess.allowedDomains, and
+	// Figma has no wildcard syntax for ports — so a URL on any other port is
+	// blocked before the request leaves the iframe, surfacing as an opaque
+	// "Failed to fetch". Check it up front and say so plainly instead.
+	const REQUIRED_PORT = '3939';
+
+	// Returns a human-readable problem with the pasted URL, or null if it looks
+	// usable. Deliberately permissive — only rejects what we know will fail.
+	function describeUrlProblem(raw) {
+		let parsed;
+		try {
+			parsed = new URL(raw);
+		} catch (err) {
+			return "That doesn't look like a URL. Run “Codegraph: Make a codegraph” in VS Code — it copies the graph URL to your clipboard.";
+		}
+		if (parsed.hostname !== 'localhost') {
+			// 127.0.0.1 is the same server, but Figma rejects IP addresses in
+			// allowedDomains, so the request would be blocked.
+			const hint =
+				parsed.hostname === '127.0.0.1'
+					? ' Use “localhost” instead of 127.0.0.1 — Figma only allows named hosts.'
+					: '';
+			return `CodeGraph can only load graphs from localhost.${hint}`;
+		}
+		if (parsed.port !== REQUIRED_PORT) {
+			return `This plugin can only reach port ${REQUIRED_PORT}, but the URL uses port ${parsed.port || '80'}. Reset the codegraph.serverPort setting in VS Code to ${REQUIRED_PORT} and make the graph again.`;
+		}
+		return null;
+	}
+
+	// A dead/unreachable server surfaces as a TypeError from fetch with no
+	// status — indistinguishable from a blocked domain at this layer. Either way
+	// the actionable advice is the same: check that the extension is running.
+	function isNetworkError(err) {
+		return err instanceof TypeError;
+	}
+
+	const SERVER_UNREACHABLE =
+		`Couldn't reach the CodeGraph server at localhost:${REQUIRED_PORT}. ` +
+		'Open your project in VS Code and run “Codegraph: Make a codegraph” — ' +
+		'the extension starts the server and copies a fresh URL to your clipboard.';
 
 	// Decode via an <img> element rather than createImageBitmap — the latter can
 	// return a blank/transparent bitmap for very large images in the Figma
@@ -42,29 +85,57 @@
 		});
 	}
 
-	// Returns clean PNG bytes for figma.createImage, or throws if the image can't
-	// be processed (so the caller marks it failed rather than sending blank bytes).
-	//
-	// We ALWAYS re-encode through a canvas, not just when downscaling. Figma's
-	// createImage accepts the original dom-to-image PNGs (they get a hash) but
-	// renders them *blank*; round-tripping every image through canvas → toPng
-	// produces a normalized PNG Figma renders reliably. Downscale only when over
-	// the 4096px hard limit.
-	async function fitImageBytes(bytes) {
-		const img = await decodeImage(bytes);
-		const largest = Math.max(img.naturalWidth, img.naturalHeight);
-		const ratio = largest > MAX_IMAGE_DIM ? MAX_IMAGE_DIM / largest : 1;
-		const w = Math.max(1, Math.round(img.naturalWidth * ratio));
-		const h = Math.max(1, Math.round(img.naturalHeight * ratio));
+	// Re-encode one source-image sub-rectangle to clean PNG bytes via canvas.
+	// We ALWAYS go through a canvas (even for a single sub-tile), not just to
+	// crop. Figma's createImage accepts the original dom-to-image PNGs (they get
+	// a hash) but renders them *blank*; round-tripping through canvas → toBlob
+	// produces a normalized PNG Figma renders reliably.
+	async function encodeTile(img, sx, sy, sw, sh) {
 		const canvas = document.createElement('canvas');
-		canvas.width = w;
-		canvas.height = h;
-		canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+		canvas.width = sw;
+		canvas.height = sh;
+		canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
 		const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
 		if (!blob) {
 			throw new Error('canvas.toBlob returned null re-encoding image');
 		}
 		return new Uint8Array(await blob.arrayBuffer());
+	}
+
+	// Slice a PNG into a grid of tiles each ≤ MAX_IMAGE_DIM in both dimensions,
+	// so no single tile trips Figma's createImage limit and nothing is
+	// downscaled. Returns tiles with their normalized [0..1] position/size within
+	// the full image; the sandbox stacks them to fill the definition's box.
+	// Throws if the image can't be decoded (caller marks it failed).
+	async function fitImageTiles(bytes) {
+		const img = await decodeImage(bytes);
+		const W = img.naturalWidth;
+		const H = img.naturalHeight;
+		// Even split into the fewest tiles that each stay ≤ the limit, so we get
+		// roughly equal strips instead of a full tile plus a thin remainder.
+		const cols = Math.ceil(W / MAX_IMAGE_DIM);
+		const rows = Math.ceil(H / MAX_IMAGE_DIM);
+		const tileW = Math.ceil(W / cols);
+		const tileH = Math.ceil(H / rows);
+
+		const tiles = [];
+		for (let r = 0; r < rows; r++) {
+			const sy = r * tileH;
+			const sh = Math.min(tileH, H - sy);
+			for (let c = 0; c < cols; c++) {
+				const sx = c * tileW;
+				const sw = Math.min(tileW, W - sx);
+				const tileBytes = await encodeTile(img, sx, sy, sw, sh);
+				tiles.push({
+					bytes: tileBytes,
+					x: sx / W,
+					y: sy / H,
+					width: sw / W,
+					height: sh / H,
+				});
+			}
+		}
+		return tiles;
 	}
 
 	// The plugin sandbox (code.ts) has no `fetch`, so the UI iframe does all the
@@ -74,14 +145,29 @@
 			status = 'Enter the graph.json URL first.';
 			return;
 		}
+		const urlProblem = describeUrlProblem(url.trim());
+		if (urlProblem) {
+			status = urlProblem;
+			return;
+		}
 		busy = true;
 		try {
 			status = 'Fetching manifest…';
 			const res = await fetch(url);
+			if (res.status === 404) {
+				throw new Error(
+					'The server is running, but that graph is gone (404). Make the graph again in VS Code to get a fresh URL.'
+				);
+			}
 			if (!res.ok) {
 				throw new Error(`manifest HTTP ${res.status}`);
 			}
 			const manifest = await res.json();
+			if (!manifest || !Array.isArray(manifest.definitions)) {
+				throw new Error(
+					"That URL didn't return a CodeGraph manifest. Make sure it ends in /graph.json."
+				);
+			}
 
 			// Images are siblings of graph.json; resolve each by filename.
 			const base = url.replace(/graph\.json(\?.*)?$/, '');
@@ -97,15 +183,15 @@
 					throw new Error(`image HTTP ${imgRes.status}: ${def.image.file}`);
 				}
 				const buf = await imgRes.arrayBuffer();
-				// A single oversized/undecodable image shouldn't blank-out or abort
-				// the whole render — send bytes:null so the sandbox draws a labeled
-				// "image too large" box for just that definition.
+				// A single undecodable image shouldn't blank-out or abort the whole
+				// render — send tiles:null so the sandbox draws a labeled "image too
+				// large" box for just that definition.
 				try {
-					const bytes = await fitImageBytes(new Uint8Array(buf));
-					images.push({ definitionId: def.id, bytes });
+					const tiles = await fitImageTiles(new Uint8Array(buf));
+					images.push({ definitionId: def.id, tiles });
 				} catch (imgErr) {
 					failedImages += 1;
-					images.push({ definitionId: def.id, bytes: null });
+					images.push({ definitionId: def.id, tiles: null });
 				}
 			}
 			if (failedImages > 0) {
@@ -118,7 +204,11 @@
 				'*'
 			);
 		} catch (err) {
-			status = 'Error: ' + (err && err.message ? err.message : String(err));
+			status = isNetworkError(err)
+				? SERVER_UNREACHABLE
+				: err && err.message
+				? err.message
+				: String(err);
 			busy = false;
 		}
 	}

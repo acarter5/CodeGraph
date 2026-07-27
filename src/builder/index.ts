@@ -73,17 +73,19 @@ export default class Builder {
 
     const parser = new CodeGraphParserTsMorph(
       targetFunctionCode,
-      targetFileCode
+      targetFileCode,
+      targetFunctionRange
     );
-    const { unPositionedFunctionNode, fileNode, externalValueDefinition } =
+    const { positionedFunctionNode, fileNode, externalValueDefinition } =
       await parser.parse();
 
-    if (!unPositionedFunctionNode || !fileNode) {
-      // The definition is a value, not a function. If that value is backed by a
-      // node_modules callee (e.g. `const db = knex(config)`), skip it like any
-      // other node_modules call — no node, no connector. (Never for the entry:
-      // the user selected it, so they should see why it didn't graph.)
-      if (externalValueDefinition && fileNode && !isEntry) {
+    if (!positionedFunctionNode) {
+      // No function-like node at the definition location — the definition is a
+      // value, not a function. If that value is backed by a node_modules callee
+      // (e.g. `const db = knex(config)`), skip it like any other node_modules
+      // call — no node, no connector. (Never for the entry: the user selected
+      // it, so they should see why it didn't graph.)
+      if (externalValueDefinition && !isEntry) {
         return null;
       }
 
@@ -93,7 +95,7 @@ export default class Builder {
       const failReason = fileNode
         ? FailReason.notAFunction
         : FailReason.parseFail;
-      console.error("parser did not return a function node", { failReason });
+      console.error("no function node at definition location", { failReason });
       const failNode = this._buildFailureNode({
         failReason,
         uri: targetFunctionUri,
@@ -123,48 +125,20 @@ export default class Builder {
     }
 
     const scanner = new ScannerTsMorph(
-      unPositionedFunctionNode,
+      positionedFunctionNode,
       fileNode,
       targetFileCode,
       targetFunctionUri.fsPath
     );
 
     const {
-      postitionedFunctionNode,
       callExpressionLocations,
       callExpressionNames,
       callExpressionExternal,
     } = scanner;
 
-    if (!postitionedFunctionNode) {
-      console.error("unable to find positionedFunctionNode");
-
-      const failNode = this._buildFailureNode({
-        uri: targetFunctionUri,
-        range: targetFunctionRange,
-        code: targetFunctionCode,
-        failReason: FailReason.positionFail,
-        parentId: parentHash,
-      });
-      if (nodeMap.has(failNode.id)) {
-        parentHash && nodeMap.get(failNode.id)?.incomingCalls.push(parentHash);
-        return nodeMap.get(failNode.id) as FailNode;
-      }
-      nodeMap.set(failNode.id, failNode);
-
-      if (isEntry) {
-        this.entryNodeId = failNode.id;
-        view.registerEntryNode(failNode);
-      }
-
-      await view.loadPage(failNode.id);
-      await view.waitForNodeSnapshot();
-
-      return failNode;
-    }
-
     const mapNode = this._buildNodeMapNodeFromTsMorphNode(
-      postitionedFunctionNode,
+      positionedFunctionNode,
       targetFunctionUri,
       targetFunctionRange,
       targetFunctionCode,
