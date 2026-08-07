@@ -1,14 +1,37 @@
 {
   "name": "codegraph",
-  "displayName": "codegraph",
-  "description": "creates a visual diagram of your code flow",
-  "version": "0.0.1",
+  "displayName": "CodeGraph",
+  "description": "Graph a function's whole call flow into FigJam — syntax-highlighted snapshots of every function it calls, recursively, wired call-site to definition.",
+  "version": "0.1.0",
+  "publisher": "acarter5",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acarter5/CodeGraph.git"
+  },
+  "bugs": {
+    "url": "https://github.com/acarter5/CodeGraph/issues"
+  },
+  "homepage": "https://github.com/acarter5/CodeGraph#readme",
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
+  "keywords": [
+    "call graph",
+    "code visualization",
+    "figjam",
+    "figma",
+    "typescript"
+  ],
+  "galleryBanner": {
+    "color": "#2D2D2D",
+    "theme": "dark"
+  },
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
