@@ -9,6 +9,11 @@ src/**
 # The FigJam plugin is published separately to the Figma Community; none of it
 # belongs in the extension package.
 client/**
+# The README's screenshot doesn't need to ship: vsce rewrites relative image
+# links to raw.githubusercontent URLs at package time, so the Marketplace pulls
+# it from the repo. (images/icon.png DOES ship — package.json's `icon` field
+# reads it from inside the .vsix.)
+images/screenshot.png
 .gitignore
 .yarnrc
 webpack.config.js

@@ -1,14 +1,41 @@
 {
   "name": "codegraph",
-  "displayName": "codegraph",
-  "description": "creates a visual diagram of your code flow",
-  "version": "0.0.1",
+  "displayName": "CodeGraph",
+  "description": "Graph a function's whole call flow into FigJam — syntax-highlighted snapshots of every function it calls, recursively, wired call-site to definition.",
+  "version": "0.1.0",
+  "publisher": "acarter5",
+  "author": {
+    "name": "Adam Carter",
+    "email": "carter.c.adam@gmail.com"
+  },
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acarter5/CodeGraph.git"
+  },
+  "bugs": {
+    "url": "https://github.com/acarter5/CodeGraph/issues"
+  },
+  "homepage": "https://github.com/acarter5/CodeGraph#readme",
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
+  "keywords": [
+    "call graph",
+    "code visualization",
+    "figjam",
+    "figma",
+    "typescript"
+  ],
+  "galleryBanner": {
+    "color": "#2D2D2D",
+    "theme": "dark"
+  },
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
@@ -59,7 +86,9 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "test": "node ./out/test/runTest.js",
+    "vsix": "vsce package",
+    "vsix:install": "code --install-extension codegraph-$npm_package_version.vsix --force"
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",
@@ -71,6 +100,7 @@
     "@typescript-eslint/eslint-plugin": "^5.53.0",
     "@typescript-eslint/parser": "^5.53.0",
     "@vscode/test-electron": "^2.2.3",
+    "@vscode/vsce": "^3.9.2",
     "copy-webpack-plugin": "^11.0.0",
     "eslint": "^8.34.0",
     "glob": "^8.1.0",
