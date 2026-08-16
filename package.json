@@ -1,6 +1,6 @@
 {
-  "name": "codegraph",
-  "displayName": "CodeGraph",
+  "name": "codegraph-visualizer",
+  "displayName": "CodeGraph for FigJam",
   "description": "Graph a function's whole call flow into FigJam — syntax-highlighted snapshots of every function it calls, recursively, wired call-site to definition.",
   "version": "0.1.0",
   "publisher": "acarter5",
