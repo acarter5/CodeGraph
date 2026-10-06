@@ -18,6 +18,9 @@
     "url": "https://github.com/acarter5/CodeGraph/issues"
   },
   "homepage": "https://github.com/acarter5/CodeGraph#readme",
+  "sponsor": {
+    "url": "https://buymeacoffee.com/cartercada4"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },
