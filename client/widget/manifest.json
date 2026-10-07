@@ -1,0 +1,17 @@
+{
+  "name": "CodeGraph Widget",
+  "id": "codegraph-widget-dev",
+  "api": "1.0.0",
+  "widgetApi": "1.0.0",
+  "editorType": ["figjam"],
+  "containsWidget": true,
+  "documentAccess": "dynamic-page",
+  "main": "code.js",
+  "ui": "ui.html",
+  "networkAccess": {
+    "allowedDomains": [
+      "http://localhost:3939"
+    ],
+    "reasoning": "CodeGraph renders a code-flow diagram produced by the CodeGraph extension for VS Code. The extension writes the diagram (a graph.json manifest plus PNG snapshots of your code) to a folder in your project and serves it from a local server on your own machine, bound to 127.0.0.1. This widget fetches those files from that local address to draw the diagram in FigJam. No data is sent to any remote server, and nothing leaves your computer. Note: this port is fixed in the widget manifest, so the codegraph.serverPort setting must be left at its default of 3939."
+  }
+}

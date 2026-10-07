@@ -3,6 +3,9 @@
     "target": "es6",
     "moduleResolution": "node",
     "esModuleInterop": true,
+    // The widget (src/widget/code.tsx) is written in Figma's widget JSX.
+    "jsx": "react",
+    "jsxFactory": "figma.widget.h",
     "typeRoots": [
       "./node_modules/@types",
       "./node_modules/@figma"
