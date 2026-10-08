@@ -4,7 +4,8 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "start": "sirv public"
+    "start": "sirv public",
+    "serve-fixture": "node scripts/serve-fixture.js"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1.141.0",
