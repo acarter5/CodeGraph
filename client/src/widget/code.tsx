@@ -36,6 +36,7 @@ const {
   Frame,
   Image,
   Text,
+  usePropertyMenu,
   useSyncedState,
   useWidgetNodeId,
 } = widget;
@@ -535,23 +536,39 @@ function CodeGraphWidget() {
   const [node] = useSyncedState<NodeData | null>("node", null);
   const [expanded, setExpanded] = useSyncedState<boolean>("expanded", false);
 
+  const canToggle = role === "node" && !!node && expandable(node);
+  const onToggle = async () => {
+    if (!node) {
+      return;
+    }
+    const next = !expanded;
+    setExpanded(next);
+    await toggleNode(widgetId, node, next);
+  };
+
+  // Toolbar action shown when the node is selected — a touch/pencil-friendly
+  // alternative to tapping the header (taps on widget onClick can be unreliable
+  // on iPad). Must be called unconditionally (hook), so it's empty otherwise.
+  usePropertyMenu(
+    canToggle
+      ? [
+          {
+            itemType: "action",
+            propertyName: "toggle",
+            tooltip: expanded ? "Collapse" : "Expand",
+          },
+        ]
+      : [],
+    () => onToggle()
+  );
+
   if (role !== "node" || !node) {
     return <Launcher />;
   }
   if (!expandable(node)) {
     return <LabelNode data={node} />;
   }
-  return (
-    <SnapshotNode
-      data={node}
-      expanded={expanded}
-      onToggle={async () => {
-        const next = !expanded;
-        setExpanded(next);
-        await toggleNode(widgetId, node, next);
-      }}
-    />
-  );
+  return <SnapshotNode data={node} expanded={expanded} onToggle={onToggle} />;
 }
 
 widget.register(CodeGraphWidget);
