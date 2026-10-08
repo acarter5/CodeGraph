@@ -47,6 +47,16 @@ export type RenderedTile = {
   height: number;
 };
 
+// The facts about a function node that any component may want to show (collapsed
+// card, tooltips, side panels...). Plain data, no formatting.
+export interface NodeInfo {
+  name: string;
+  // Repo(workspace)-relative file path; null when the source is unknown.
+  path: string | null;
+  // How many times this function's definition appears in the rendered graph.
+  instanceCount: number;
+}
+
 export type Box = { x: number; y: number; w: number; h: number };
 
 export interface PreparedGraph {
@@ -59,12 +69,15 @@ export interface PreparedGraph {
   // Column gap (dagre ranksep), wide enough for the busiest corridor's lanes.
   rankSep: number;
   describe: (placement: ManifestPlacement) => BoxDescription;
+  // Info for a definition (counts reflect the rendered, post-filter graph).
+  infoForDef: (definitionId: string) => NodeInfo;
 }
 
 // Everything a renderer needs to draw one placement's box, independent of how
 // it draws it (plain nodes in the plugin, a widget in the widget).
 export interface BoxDescription {
   name: string;
+  info: NodeInfo;
   // Snapshot card (tiles present): header text + duplicate badge.
   headerText: string;
   badge: string;
@@ -195,6 +208,15 @@ export function prepareGraph(
     2 * CORRIDOR_MARGIN + LANE_GAP * (maxLanes - 1)
   );
 
+  const infoForDef = (definitionId: string): NodeInfo => {
+    const def = defById.get(definitionId);
+    return {
+      name: def ? def.name : definitionId,
+      path: def && def.path ? def.path : null,
+      instanceCount: instanceCountByDef.get(definitionId) ?? 1,
+    };
+  };
+
   const describe = (placement: ManifestPlacement): BoxDescription => {
     const def = defById.get(placement.definitionId);
     const name = def ? def.name : placement.definitionId;
@@ -226,6 +248,7 @@ export function prepareGraph(
 
     return {
       name,
+      info: infoForDef(placement.definitionId),
       headerText: def && def.path ? def.path : name,
       badge: `${glyph} ${idx}/${count}`,
       color: colorForDef(placement.definitionId),
@@ -253,6 +276,7 @@ export function prepareGraph(
     colorForDef,
     rankSep,
     describe,
+    infoForDef,
   };
 }
 

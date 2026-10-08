@@ -40,8 +40,10 @@ const {
   useWidgetNodeId,
 } = widget;
 
-// A collapsed node is just its header band.
-const COLLAPSED_H = HEADER_H + 2 * CARD_PAD;
+// An expanded node's header band, and a collapsed node (header + a detail line
+// with the file path and instance count).
+const HEADER_BAND_H = HEADER_H + 2 * CARD_PAD;
+const COLLAPSED_H = HEADER_BAND_H + 16;
 // Gap between the launcher and the top of the graph it renders.
 const GRAPH_OFFSET_Y = 80;
 const WHITE = "#FFFFFF";
@@ -409,10 +411,15 @@ function SnapshotNode({
   const w = data.width;
   const h = heightOf(data, expanded);
   const tiles = data.tiles || [];
-  const header =
-    data.headerText === data.name
+  const { info } = data;
+  const header = expanded
+    ? data.headerText === data.name
       ? data.name
-      : `${data.name} · ${data.headerText}`;
+      : `${data.name} · ${data.headerText}`
+    : info.name;
+  const detail = `${info.path ?? "unknown file"} · ${info.instanceCount} ${
+    info.instanceCount === 1 ? "instance" : "instances"
+  }`;
   return (
     <Frame
       name={data.name}
@@ -426,7 +433,7 @@ function SnapshotNode({
         x={0}
         y={0}
         width={w}
-        height={COLLAPSED_H}
+        height={HEADER_BAND_H}
         padding={{ horizontal: CARD_PAD }}
         spacing={6}
         verticalAlignItems="center"
@@ -456,6 +463,19 @@ function SnapshotNode({
           {data.badge}
         </Text>
       </AutoLayout>
+      {expanded ? null : (
+        <Text
+          x={CARD_PAD}
+          y={HEADER_BAND_H - 2}
+          fontSize={10}
+          fill={WHITE}
+          opacity={0.85}
+          width={Math.max(1, w - 2 * CARD_PAD)}
+          truncate={1}
+        >
+          {detail}
+        </Text>
+      )}
       {expanded
         ? tiles.map((tile, i) => {
             // One image per tile, laid out by its normalized rect so the tiles
