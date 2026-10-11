@@ -1,0 +1,1067 @@
+{
+  "version": 1,
+  "entryDefinitionId": "d38cf6305d7f61c1bb588ab6a4ccca3279f0b3e0",
+  "source": {
+    "name": "createToJSONSchemaMethod",
+    "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts"
+  },
+  "definitions": [
+    {
+      "id": "d38cf6305d7f61c1bb588ab6a4ccca3279f0b3e0",
+      "name": "createToJSONSchemaMethod",
+      "kind": "function",
+      "image": {
+        "file": "createToJSONSchemaMethod v4-core-to-json-schema%ts d38cf6305d7f61c1bb588ab6a4ccca3279f0b3e0.png",
+        "width": 2400,
+        "height": 1020,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 599,
+            "character": 0
+          },
+          "end": {
+            "line": 606,
+            "character": 4
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "19b37e4a46f69e92e04caa576d014efb5e32ed41",
+      "name": "initializeContext",
+      "kind": "function",
+      "image": {
+        "file": "initializeContext v4-core-to-json-schema%ts 19b37e4a46f69e92e04caa576d014efb5e32ed41.png",
+        "width": 2466,
+        "height": 1728,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 117,
+            "character": 0
+          },
+          "end": {
+            "line": 136,
+            "character": 1
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "997584a9f3cbcb40133bb06630f2ce7e0d3af981",
+      "name": "extractDefs",
+      "kind": "function",
+      "image": {
+        "file": "extractDefs v4-core-to-json-schema%ts 997584a9f3cbcb40133bb06630f2ce7e0d3af981.png",
+        "width": 3750,
+        "height": 8865,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 216,
+            "character": 0
+          },
+          "end": {
+            "line": 356,
+            "character": 1
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96",
+      "name": "get",
+      "kind": "function",
+      "image": {
+        "file": "get v4-core-registries%ts f62f6ed136044a13c9c31d164e4ccac1b4c63d96.png",
+        "width": 1884,
+        "height": 1314,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/registries.ts",
+        "range": {
+          "start": {
+            "line": 59,
+            "character": 2
+          },
+          "end": {
+            "line": 71,
+            "character": 3
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/registries.ts"
+    },
+    {
+      "id": "802b2db46f25ee7c7509c71131cfa6044da5d421",
+      "name": "Anonymous",
+      "kind": "function",
+      "image": {
+        "file": "Anonymous v4-core-to-json-schema%ts 802b2db46f25ee7c7509c71131cfa6044da5d421.png",
+        "width": 1842,
+        "height": 924,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 254,
+            "character": 6
+          },
+          "end": {
+            "line": 254,
+            "character": 68
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "f3ecf868298db3b31e6077d89d8b042708ca629c",
+      "name": "makeURI",
+      "kind": "function",
+      "image": {
+        "file": "makeURI v4-core-to-json-schema%ts f3ecf868298db3b31e6077d89d8b042708ca629c.png",
+        "width": 2937,
+        "height": 2436,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 243,
+            "character": 18
+          },
+          "end": {
+            "line": 274,
+            "character": 3
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2",
+      "name": "extractToDef",
+      "kind": "function",
+      "image": {
+        "file": "extractToDef v4-core-to-json-schema%ts b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2.png",
+        "width": 2142,
+        "height": 1668,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 278,
+            "character": 23
+          },
+          "end": {
+            "line": 296,
+            "character": 3
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "35479c9e41dfcedc2be50cceebe54e5f605fd630",
+      "name": "finalize",
+      "kind": "function",
+      "image": {
+        "file": "finalize v4-core-to-json-schema%ts 35479c9e41dfcedc2be50cceebe54e5f605fd630.png",
+        "width": 3066,
+        "height": 10341,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 358,
+            "character": 0
+          },
+          "end": {
+            "line": 523,
+            "character": 1
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "d7aa2348f27b0003612651f722b5b4dc0b3eade1",
+      "name": "flattenRef",
+      "kind": "function",
+      "image": {
+        "file": "flattenRef v4-core-to-json-schema%ts d7aa2348f27b0003612651f722b5b4dc0b3eade1.png",
+        "width": 3066,
+        "height": 5325,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 366,
+            "character": 21
+          },
+          "end": {
+            "line": 446,
+            "character": 3
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "f2f1600469271e3a929bd79712398e823c3964e1",
+      "name": "Not a Function",
+      "kind": "notAFunction",
+      "image": {
+        "file": "Not a Function v4-core-to-json-schema%ts f2f1600469271e3a929bd79712398e823c3964e1.png",
+        "width": 2076,
+        "height": 924,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 88,
+            "character": 2
+          },
+          "end": {
+            "line": 93,
+            "character": 13
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "98bac2e87017d0c80845d5b8a7083c4b56fc8738",
+      "name": "Not a Function",
+      "kind": "notAFunction",
+      "image": {
+        "file": "Not a Function v4-core-to-json-schema%ts 98bac2e87017d0c80845d5b8a7083c4b56fc8738.png",
+        "width": 1437,
+        "height": 924,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 102,
+            "character": 8
+          },
+          "end": {
+            "line": 102,
+            "character": 51
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    },
+    {
+      "id": "36c81bf295085eea701e1a84b28e69cfa0aecb6b",
+      "name": "createStandardJSONSchemaMethod",
+      "kind": "function",
+      "image": {
+        "file": "createStandardJSONSchemaMethod v4-core-to-json-schema%ts 36c81bf295085eea701e1a84b28e69cfa0aecb6b.png",
+        "width": 2874,
+        "height": 1020,
+        "scale": 3
+      },
+      "source": {
+        "uri": "file:///home/carte/code/zod/packages/zod/src/v4/core/to-json-schema.ts",
+        "range": {
+          "start": {
+            "line": 614,
+            "character": 2
+          },
+          "end": {
+            "line": 621,
+            "character": 3
+          }
+        }
+      },
+      "path": "packages/zod/src/v4/core/to-json-schema.ts"
+    }
+  ],
+  "placements": [
+    {
+      "id": "d38cf6305d7f61c1bb588ab6a4ccca3279f0b3e0@0",
+      "definitionId": "d38cf6305d7f61c1bb588ab6a4ccca3279f0b3e0",
+      "level": 0
+    },
+    {
+      "id": "19b37e4a46f69e92e04caa576d014efb5e32ed41@1",
+      "definitionId": "19b37e4a46f69e92e04caa576d014efb5e32ed41",
+      "level": 1
+    },
+    {
+      "id": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "definitionId": "997584a9f3cbcb40133bb06630f2ce7e0d3af981",
+      "level": 1
+    },
+    {
+      "id": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@2",
+      "definitionId": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96",
+      "level": 2
+    },
+    {
+      "id": "802b2db46f25ee7c7509c71131cfa6044da5d421@2",
+      "definitionId": "802b2db46f25ee7c7509c71131cfa6044da5d421",
+      "level": 2
+    },
+    {
+      "id": "f3ecf868298db3b31e6077d89d8b042708ca629c@2",
+      "definitionId": "f3ecf868298db3b31e6077d89d8b042708ca629c",
+      "level": 2
+    },
+    {
+      "id": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@3",
+      "definitionId": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96",
+      "level": 3
+    },
+    {
+      "id": "802b2db46f25ee7c7509c71131cfa6044da5d421@3",
+      "definitionId": "802b2db46f25ee7c7509c71131cfa6044da5d421",
+      "level": 3
+    },
+    {
+      "id": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@2",
+      "definitionId": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2",
+      "level": 2
+    },
+    {
+      "id": "f3ecf868298db3b31e6077d89d8b042708ca629c@3",
+      "definitionId": "f3ecf868298db3b31e6077d89d8b042708ca629c",
+      "level": 3
+    },
+    {
+      "id": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@4",
+      "definitionId": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96",
+      "level": 4
+    },
+    {
+      "id": "802b2db46f25ee7c7509c71131cfa6044da5d421@4",
+      "definitionId": "802b2db46f25ee7c7509c71131cfa6044da5d421",
+      "level": 4
+    },
+    {
+      "id": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "definitionId": "35479c9e41dfcedc2be50cceebe54e5f605fd630",
+      "level": 1
+    },
+    {
+      "id": "d7aa2348f27b0003612651f722b5b4dc0b3eade1@2",
+      "definitionId": "d7aa2348f27b0003612651f722b5b4dc0b3eade1",
+      "level": 2
+    },
+    {
+      "id": "f2f1600469271e3a929bd79712398e823c3964e1@3",
+      "definitionId": "f2f1600469271e3a929bd79712398e823c3964e1",
+      "level": 3
+    },
+    {
+      "id": "f2f1600469271e3a929bd79712398e823c3964e1@2",
+      "definitionId": "f2f1600469271e3a929bd79712398e823c3964e1",
+      "level": 2
+    },
+    {
+      "id": "98bac2e87017d0c80845d5b8a7083c4b56fc8738@2",
+      "definitionId": "98bac2e87017d0c80845d5b8a7083c4b56fc8738",
+      "level": 2
+    },
+    {
+      "id": "36c81bf295085eea701e1a84b28e69cfa0aecb6b@2",
+      "definitionId": "36c81bf295085eea701e1a84b28e69cfa0aecb6b",
+      "level": 2
+    },
+    {
+      "id": "19b37e4a46f69e92e04caa576d014efb5e32ed41@3",
+      "definitionId": "19b37e4a46f69e92e04caa576d014efb5e32ed41",
+      "level": 3
+    },
+    {
+      "id": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "definitionId": "997584a9f3cbcb40133bb06630f2ce7e0d3af981",
+      "level": 3
+    },
+    {
+      "id": "f3ecf868298db3b31e6077d89d8b042708ca629c@4",
+      "definitionId": "f3ecf868298db3b31e6077d89d8b042708ca629c",
+      "level": 4
+    },
+    {
+      "id": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@5",
+      "definitionId": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96",
+      "level": 5
+    },
+    {
+      "id": "802b2db46f25ee7c7509c71131cfa6044da5d421@5",
+      "definitionId": "802b2db46f25ee7c7509c71131cfa6044da5d421",
+      "level": 5
+    },
+    {
+      "id": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@4",
+      "definitionId": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2",
+      "level": 4
+    },
+    {
+      "id": "f3ecf868298db3b31e6077d89d8b042708ca629c@5",
+      "definitionId": "f3ecf868298db3b31e6077d89d8b042708ca629c",
+      "level": 5
+    },
+    {
+      "id": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@6",
+      "definitionId": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96",
+      "level": 6
+    },
+    {
+      "id": "802b2db46f25ee7c7509c71131cfa6044da5d421@6",
+      "definitionId": "802b2db46f25ee7c7509c71131cfa6044da5d421",
+      "level": 6
+    }
+  ],
+  "edges": [
+    {
+      "from": "d38cf6305d7f61c1bb588ab6a4ccca3279f0b3e0@0",
+      "to": "19b37e4a46f69e92e04caa576d014efb5e32ed41@1",
+      "callSiteRect": {
+        "x": 0.2767372538139397,
+        "y": 0.45338564507118384,
+        "width": 0.1518267390993824,
+        "height": 0.04514232361365
+      }
+    },
+    {
+      "from": "d38cf6305d7f61c1bb588ab6a4ccca3279f0b3e0@0",
+      "to": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "callSiteRect": {
+        "x": 0.16954093619587612,
+        "y": 0.5691854718128105,
+        "width": 0.09824159269203693,
+        "height": 0.04514232361365
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@2",
+      "callSiteRect": {
+        "x": 0.29146117690840184,
+        "y": 0.11865553835978813,
+        "width": 0.017152606543091982,
+        "height": 0.005188352857147342
+      }
+    },
+    {
+      "from": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@2",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@2",
+      "recursion": true,
+      "callSiteRect": {
+        "x": 0.533851790569639,
+        "y": 0.4863013698630137,
+        "width": 0.03414195626965347,
+        "height": 0.0350076335750214
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@2",
+      "callSiteRect": {
+        "x": 0.3543485355566025,
+        "y": 0.26505752229276947,
+        "width": 0.017152606543091982,
+        "height": 0.005188352857147342
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@2",
+      "callSiteRect": {
+        "x": 0.21143785655837008,
+        "y": 0.298330692010588,
+        "width": 0.068593781331107,
+        "height": 0.005188352857147342
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@2",
+      "callSiteRect": {
+        "x": 0.2800566295572941,
+        "y": 0.33825852458553235,
+        "width": 0.0685938057370326,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "f3ecf868298db3b31e6077d89d8b042708ca629c@2",
+      "callSiteRect": {
+        "x": 0.2400449693822782,
+        "y": 0.48466048786596927,
+        "width": 0.04002000700157194,
+        "height": 0.005188373509691743
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@2",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@3",
+      "callSiteRect": {
+        "x": 0.45263102927972865,
+        "y": 0.3108829616192148,
+        "width": 0.021910072077015164,
+        "height": 0.018891182490575708
+      }
+    },
+    {
+      "from": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@3",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@3",
+      "recursion": true,
+      "callSiteRect": {
+        "x": 0.533851790569639,
+        "y": 0.4863013698630137,
+        "width": 0.03414195626965347,
+        "height": 0.0350076335750214
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@2",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@3",
+      "callSiteRect": {
+        "x": 0.2700824895251397,
+        "y": 0.43203286844598054,
+        "width": 0.08761902683559457,
+        "height": 0.01889114489191777
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@2",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@3",
+      "callSiteRect": {
+        "x": 0.3577334397446129,
+        "y": 0.5774127415986363,
+        "width": 0.08761905801077415,
+        "height": 0.01889114489191777
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@2",
+      "callSiteRect": {
+        "x": 0.11994334847737288,
+        "y": 0.7242274007054579,
+        "width": 0.06859379353406979,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@2",
+      "to": "f3ecf868298db3b31e6077d89d8b042708ca629c@3",
+      "callSiteRect": {
+        "x": 0.42020299238778547,
+        "y": 0.3830935251798561,
+        "width": 0.07005573472635401,
+        "height": 0.027577955945790242
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@3",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@4",
+      "callSiteRect": {
+        "x": 0.45263102927972865,
+        "y": 0.3108829616192148,
+        "width": 0.021910072077015164,
+        "height": 0.018891182490575708
+      }
+    },
+    {
+      "from": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@4",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@4",
+      "recursion": true,
+      "callSiteRect": {
+        "x": 0.533851790569639,
+        "y": 0.4863013698630137,
+        "width": 0.03414195626965347,
+        "height": 0.0350076335750214
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@3",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@4",
+      "callSiteRect": {
+        "x": 0.2700824895251397,
+        "y": 0.43203286844598054,
+        "width": 0.08761902683559457,
+        "height": 0.01889114489191777
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@3",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@4",
+      "callSiteRect": {
+        "x": 0.3577334397446129,
+        "y": 0.5774127415986363,
+        "width": 0.08761905801077415,
+        "height": 0.01889114489191777
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@2",
+      "callSiteRect": {
+        "x": 0.31433687538158667,
+        "y": 0.7641552126278578,
+        "width": 0.017152606543091982,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@2",
+      "callSiteRect": {
+        "x": 0.13138119771396528,
+        "y": 0.7774644557319319,
+        "width": 0.0685938057370326,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@2",
+      "callSiteRect": {
+        "x": 0.29146117690840184,
+        "y": 0.8173922676543319,
+        "width": 0.017152606543091982,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@2",
+      "callSiteRect": {
+        "x": 0.11994334847737288,
+        "y": 0.830701510758406,
+        "width": 0.06859379353406979,
+        "height": 0.0051884148147805466
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@2",
+      "callSiteRect": {
+        "x": 0.11994334847737288,
+        "y": 0.8772839855379319,
+        "width": 0.06859379353406979,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@1",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@2",
+      "callSiteRect": {
+        "x": 0.13138119771396528,
+        "y": 0.9238664603174577,
+        "width": 0.0685938057370326,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "d38cf6305d7f61c1bb588ab6a4ccca3279f0b3e0@0",
+      "to": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "callSiteRect": {
+        "x": 0.23206778559466695,
+        "y": 0.6270853402607932,
+        "width": 0.07145553045565484,
+        "height": 0.04514232361365
+      }
+    },
+    {
+      "from": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "to": "d7aa2348f27b0003612651f722b5b4dc0b3eade1@2",
+      "callSiteRect": {
+        "x": 0.14676412024383811,
+        "y": 0.14737452857557296,
+        "width": 0.06994689752893643,
+        "height": 0.004448324346805193
+      }
+    },
+    {
+      "from": "d7aa2348f27b0003612651f722b5b4dc0b3eade1@2",
+      "to": "d7aa2348f27b0003612651f722b5b4dc0b3eade1@2",
+      "recursion": true,
+      "callSiteRect": {
+        "x": 0.14676412024383811,
+        "y": 0.1975215991219739,
+        "width": 0.06994689752893643,
+        "height": 0.008636864046289721
+      }
+    },
+    {
+      "from": "d7aa2348f27b0003612651f722b5b4dc0b3eade1@2",
+      "to": "d7aa2348f27b0003612651f722b5b4dc0b3eade1@2",
+      "recursion": true,
+      "callSiteRect": {
+        "x": 0.14676412024383811,
+        "y": 0.6960195567362562,
+        "width": 0.06994689752893643,
+        "height": 0.00863682966674324
+      }
+    },
+    {
+      "from": "d7aa2348f27b0003612651f722b5b4dc0b3eade1@2",
+      "to": "f2f1600469271e3a929bd79712398e823c3964e1@3",
+      "callSiteRect": {
+        "x": 0.16076980814329073,
+        "y": 0.8843409485633166,
+        "width": 0.05596159138864255,
+        "height": 0.008636898425836202
+      }
+    },
+    {
+      "from": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "to": "d7aa2348f27b0003612651f722b5b4dc0b3eade1@2",
+      "callSiteRect": {
+        "x": 0.14676412024383811,
+        "y": 0.40411952422396286,
+        "width": 0.06994689752893643,
+        "height": 0.004448324346805193
+      }
+    },
+    {
+      "from": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "to": "f2f1600469271e3a929bd79712398e823c3964e1@2",
+      "callSiteRect": {
+        "x": 0.16076980814329073,
+        "y": 0.5011120899400747,
+        "width": 0.05596159138864255,
+        "height": 0.004448324346805193
+      }
+    },
+    {
+      "from": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "to": "d7aa2348f27b0003612651f722b5b4dc0b3eade1@2",
+      "callSiteRect": {
+        "x": 0.13277881410354422,
+        "y": 0.5467556565265086,
+        "width": 0.06994689752893643,
+        "height": 0.0044482889333115755
+      }
+    },
+    {
+      "from": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@2",
+      "callSiteRect": {
+        "x": 0.36364842029869116,
+        "y": 0.6437481868291268,
+        "width": 0.02098813515832849,
+        "height": 0.004448359760298811
+      }
+    },
+    {
+      "from": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "to": "98bac2e87017d0c80845d5b8a7083c4b56fc8738@2",
+      "callSiteRect": {
+        "x": 0.3146794894460414,
+        "y": 0.6551591227426022,
+        "width": 0.02098813515832849,
+        "height": 0.0044482889333115755
+      }
+    },
+    {
+      "from": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@2",
+      "callSiteRect": {
+        "x": 0.3986014798381548,
+        "y": 0.7065081218722803,
+        "width": 0.02098813515832849,
+        "height": 0.0044482889333115755
+      }
+    },
+    {
+      "from": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "to": "36c81bf295085eea701e1a84b28e69cfa0aecb6b@2",
+      "callSiteRect": {
+        "x": 0.22372404513623437,
+        "y": 0.9004931824775166,
+        "width": 0.20983049424138406,
+        "height": 0.004448359760298811
+      }
+    },
+    {
+      "from": "36c81bf295085eea701e1a84b28e69cfa0aecb6b@2",
+      "to": "19b37e4a46f69e92e04caa576d014efb5e32ed41@3",
+      "callSiteRect": {
+        "x": 0.23127712613063986,
+        "y": 0.45338564507118384,
+        "width": 0.12688588690086533,
+        "height": 0.04514232361365
+      }
+    },
+    {
+      "from": "36c81bf295085eea701e1a84b28e69cfa0aecb6b@2",
+      "to": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "callSiteRect": {
+        "x": 0.14169014089893123,
+        "y": 0.5691854718128105,
+        "width": 0.08210326911600897,
+        "height": 0.04514232361365
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@4",
+      "callSiteRect": {
+        "x": 0.29146117690840184,
+        "y": 0.11865553835978813,
+        "width": 0.017152606543091982,
+        "height": 0.005188352857147342
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@4",
+      "callSiteRect": {
+        "x": 0.3543485355566025,
+        "y": 0.26505752229276947,
+        "width": 0.017152606543091982,
+        "height": 0.005188352857147342
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@4",
+      "callSiteRect": {
+        "x": 0.21143785655837008,
+        "y": 0.298330692010588,
+        "width": 0.068593781331107,
+        "height": 0.005188352857147342
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@4",
+      "callSiteRect": {
+        "x": 0.2800566295572941,
+        "y": 0.33825852458553235,
+        "width": 0.0685938057370326,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "f3ecf868298db3b31e6077d89d8b042708ca629c@4",
+      "callSiteRect": {
+        "x": 0.2400449693822782,
+        "y": 0.48466048786596927,
+        "width": 0.04002000700157194,
+        "height": 0.005188373509691743
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@4",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@5",
+      "callSiteRect": {
+        "x": 0.45263102927972865,
+        "y": 0.3108829616192148,
+        "width": 0.021910072077015164,
+        "height": 0.018891182490575708
+      }
+    },
+    {
+      "from": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@5",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@5",
+      "recursion": true,
+      "callSiteRect": {
+        "x": 0.533851790569639,
+        "y": 0.4863013698630137,
+        "width": 0.03414195626965347,
+        "height": 0.0350076335750214
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@4",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@5",
+      "callSiteRect": {
+        "x": 0.2700824895251397,
+        "y": 0.43203286844598054,
+        "width": 0.08761902683559457,
+        "height": 0.01889114489191777
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@4",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@5",
+      "callSiteRect": {
+        "x": 0.3577334397446129,
+        "y": 0.5774127415986363,
+        "width": 0.08761905801077415,
+        "height": 0.01889114489191777
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@4",
+      "callSiteRect": {
+        "x": 0.11994334847737288,
+        "y": 0.7242274007054579,
+        "width": 0.06859379353406979,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@4",
+      "to": "f3ecf868298db3b31e6077d89d8b042708ca629c@5",
+      "callSiteRect": {
+        "x": 0.42020299238778547,
+        "y": 0.3830935251798561,
+        "width": 0.07005573472635401,
+        "height": 0.027577955945790242
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@5",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@6",
+      "callSiteRect": {
+        "x": 0.45263102927972865,
+        "y": 0.3108829616192148,
+        "width": 0.021910072077015164,
+        "height": 0.018891182490575708
+      }
+    },
+    {
+      "from": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@6",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@6",
+      "recursion": true,
+      "callSiteRect": {
+        "x": 0.533851790569639,
+        "y": 0.4863013698630137,
+        "width": 0.03414195626965347,
+        "height": 0.0350076335750214
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@5",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@6",
+      "callSiteRect": {
+        "x": 0.2700824895251397,
+        "y": 0.43203286844598054,
+        "width": 0.08761902683559457,
+        "height": 0.01889114489191777
+      }
+    },
+    {
+      "from": "f3ecf868298db3b31e6077d89d8b042708ca629c@5",
+      "to": "802b2db46f25ee7c7509c71131cfa6044da5d421@6",
+      "callSiteRect": {
+        "x": 0.3577334397446129,
+        "y": 0.5774127415986363,
+        "width": 0.08761905801077415,
+        "height": 0.01889114489191777
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@4",
+      "callSiteRect": {
+        "x": 0.31433687538158667,
+        "y": 0.7641552126278578,
+        "width": 0.017152606543091982,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@4",
+      "callSiteRect": {
+        "x": 0.13138119771396528,
+        "y": 0.7774644557319319,
+        "width": 0.0685938057370326,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "f62f6ed136044a13c9c31d164e4ccac1b4c63d96@4",
+      "callSiteRect": {
+        "x": 0.29146117690840184,
+        "y": 0.8173922676543319,
+        "width": 0.017152606543091982,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@4",
+      "callSiteRect": {
+        "x": 0.11994334847737288,
+        "y": 0.830701510758406,
+        "width": 0.06859379353406979,
+        "height": 0.0051884148147805466
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@4",
+      "callSiteRect": {
+        "x": 0.11994334847737288,
+        "y": 0.8772839855379319,
+        "width": 0.06859379353406979,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "997584a9f3cbcb40133bb06630f2ce7e0d3af981@3",
+      "to": "b6ddc57b902dd3b060d6f2c8c1555f9cc1a5e2d2@4",
+      "callSiteRect": {
+        "x": 0.13138119771396528,
+        "y": 0.9238664603174577,
+        "width": 0.0685938057370326,
+        "height": 0.00518833220460294
+      }
+    },
+    {
+      "from": "36c81bf295085eea701e1a84b28e69cfa0aecb6b@2",
+      "to": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "recursion": true,
+      "callSiteRect": {
+        "x": 0.19394559200158012,
+        "y": 0.6270853402607932,
+        "width": 0.05971740162253435,
+        "height": 0.04514232361365
+      }
+    },
+    {
+      "from": "35479c9e41dfcedc2be50cceebe54e5f605fd630@1",
+      "to": "36c81bf295085eea701e1a84b28e69cfa0aecb6b@2",
+      "callSiteRect": {
+        "x": 0.23071670567222716,
+        "y": 0.9061986504342544,
+        "width": 0.20983049424138406,
+        "height": 0.0044482889333115755
+      }
+    }
+  ]
+}

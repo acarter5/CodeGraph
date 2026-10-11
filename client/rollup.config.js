@@ -6,6 +6,10 @@ import { terser } from 'rollup-plugin-terser';
 // Needed for figma-plugin-ds-svelte, whose components import .svg icon files.
 import svg from 'rollup-plugin-svg';
 import typescript from 'rollup-plugin-typescript';
+// rollup-plugin-typescript v1 can't drive TS 5 ("hostOrText.readFile is not a
+// function"), so it transpiles with a pinned TS 3.8 alias. It only strips types
+// (no type-check) — `npx tsc --noEmit` uses the real TS 5 for that.
+const transpiler = require('typescript-transpile');
 
 /* Post CSS */
 import postcss from 'rollup-plugin-postcss';
@@ -75,7 +79,7 @@ export default [{
 		name: 'code'
 	},
 	plugins: [
-		typescript(),
+		typescript({ typescript: transpiler }),
 		// Resolve + bundle node_modules deps (e.g. @dagrejs/dagre) into the
 		// sandbox bundle; commonjs() converts their CJS to ESM for Rollup.
 		resolve({
@@ -85,7 +89,36 @@ export default [{
 		commonjs(),
 		production && terser()
 	]
+},
+{
+	// The CodeGraph widget (interactive, collapsible nodes). Shares ./shared
+	// with the plugin and reuses the plugin's UI iframe, copied in as
+	// widget/ui.html once it's built (the UI config above runs first).
+	input: 'src/widget/code.tsx',
+	output: {
+		file: 'widget/code.js',
+		format: 'cjs',
+		name: 'code'
+	},
+	plugins: [
+		typescript({ typescript: transpiler }),
+		resolve({
+			browser: true,
+			extensions: ['.ts', '.tsx', '.mjs', '.js', '.json', '.node']
+		}),
+		commonjs(),
+		production && terser(),
+		copyFile('public/index.html', 'widget/ui.html')
+	]
 }];
+
+function copyFile(from, to) {
+	return {
+		writeBundle() {
+			require('fs').copyFileSync(from, to);
+		}
+	};
+}
 
 function serve() {
 	let started = false;
