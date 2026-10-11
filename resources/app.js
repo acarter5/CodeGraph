@@ -47,7 +47,6 @@
   const beerButton = document.querySelector("#beer");
 
   const downloadButton = document.querySelector("#download");
-  const footer = document.querySelector("#footer");
 
   copyButton.addEventListener("click", () => copyImage(false));
   downloadButton.addEventListener("click", downloadImage);
@@ -158,8 +157,6 @@
     node.innerHTML = `<pre id="code" class="language-${language}" style="margin: 0; padding: 12px 16px; font-family: 'Cascadia Code', Menlo, Monaco, monospace; font-size: 13px; line-height: ${LINE_HEIGHT_PX}px; white-space: pre; background: #2d2d2d;"><code class="language-${language}">${highlighted}</code></pre>`;
 
     const linesNode = document.getElementById("lines");
-    const titleNode = document.getElementById("title");
-    titleNode.innerHTML = "fileName";
 
     // Match the code's line height exactly so the gutter stays aligned even
     // if a future theme change shifts the code block's height.
@@ -171,7 +168,6 @@
     }
 
     containerNode.style.opacity = 1;
-    footer.style.display = "flex";
   }
 
   // Character offset into `code` for a 0-based (row, col). `code` matches the
