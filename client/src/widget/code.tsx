@@ -35,6 +35,8 @@ const {
   AutoLayout,
   Frame,
   Image,
+  Input,
+  Rectangle,
   Text,
   usePropertyMenu,
   useSyncedState,
@@ -48,6 +50,15 @@ const COLLAPSED_H = HEADER_BAND_H + 16;
 // Gap between the launcher and the top of the graph it renders.
 const GRAPH_OFFSET_Y = 80;
 const WHITE = "#FFFFFF";
+// An expanded node grows a notes panel to the left of its snapshot.
+const NOTES_W = 360;
+const NOTE_LINE_H = 20;
+const PAPER = "#FFF8B8";
+const PAPER_RULE = "#9CC7E8";
+const PAPER_MARGIN = "#E8888C";
+
+// Extra card width an expanded node takes for its notes panel.
+const NOTES_EXTRA = NOTES_W + CARD_PAD;
 
 // What a node widget needs to draw itself (its synced "node" state). It's the
 // shared BoxDescription plus which graph/placement it belongs to.
@@ -86,6 +97,12 @@ function saveEdge(graphId: string, i: number, stored: StoredEdge) {
 
 const expandable = (data: NodeData) => !!data.tiles && data.tiles.length > 0;
 
+// Expandable nodes reserve room for the notes panel even while collapsed, so
+// toggling never changes a node's width (and no column has to shift).
+function widthOf(data: NodeData, _expanded: boolean): number {
+  return expandable(data) ? data.width + NOTES_EXTRA : data.width;
+}
+
 function heightOf(data: NodeData, expanded: boolean): number {
   return expandable(data) && !expanded ? COLLAPSED_H : data.height;
 }
@@ -93,7 +110,7 @@ function heightOf(data: NodeData, expanded: boolean): number {
 // The snapshot image's box within a card whose top-left is (x, y).
 function imageBoxAt(x: number, y: number, data: NodeData): Box {
   return {
-    x: x + CARD_PAD,
+    x: x + CARD_PAD + NOTES_EXTRA,
     y: y + CARD_PAD + HEADER_H,
     w: data.imageWidth,
     h: data.imageHeight,
@@ -112,7 +129,7 @@ function geometryFor(
   const box = (pid: string): Box | undefined => {
     const e = entries.get(pid);
     return e
-      ? { x: e.x, y: e.y, w: e.data.width, h: heightOf(e.data, e.expanded) }
+      ? { x: e.x, y: e.y, w: widthOf(e.data, e.expanded), h: heightOf(e.data, e.expanded) }
       : undefined;
   };
   // Column bounds come from where the nodes actually are now, so the graph
@@ -123,7 +140,8 @@ function geometryFor(
       if (levelOf(pid) !== level) {
         continue;
       }
-      const edge = side === "left" ? e.x : e.x + e.data.width;
+      const edge =
+        side === "left" ? e.x : e.x + widthOf(e.data, e.expanded);
       v =
         v === undefined
           ? edge
@@ -148,7 +166,7 @@ function geometryFor(
     collapsedStart: (pid) => {
       const e = entries.get(pid);
       return e && expandable(e.data) && !e.expanded
-        ? { x: e.x + e.data.width, y: e.y + COLLAPSED_H / 2 }
+        ? { x: e.x + widthOf(e.data, false), y: e.y + COLLAPSED_H / 2 }
         : null;
     },
     nodeId: (pid) => entries.get(pid)?.id,
@@ -219,7 +237,10 @@ async function renderGraph(msg: RenderGraphMessage, launcherId: string) {
 
   const layout = layoutGraph(graph, (p) => {
     const data = dataByPlacement.get(p.id) as NodeData;
-    return { w: data.width, h: heightOf(data, startsExpanded(p.id)) };
+    return {
+      w: widthOf(data, startsExpanded(p.id)),
+      h: heightOf(data, startsExpanded(p.id)),
+    };
   });
 
   // Place the graph below the launcher, top-left aligned with it.
@@ -404,14 +425,19 @@ function SnapshotNode({
   data,
   expanded,
   onToggle,
+  notes,
+  setNotes,
 }: {
   data: NodeData;
   expanded: boolean;
   onToggle: () => Promise<void>;
+  notes: string;
+  setNotes: (v: string) => void;
 }) {
-  const w = data.width;
+  const w = widthOf(data, expanded);
   const h = heightOf(data, expanded);
   const tiles = data.tiles || [];
+  const notesH = Math.max(1, data.height - HEADER_BAND_H - CARD_PAD);
   const { info } = data;
   const header = expanded
     ? data.headerText === data.name
@@ -477,6 +503,45 @@ function SnapshotNode({
           {detail}
         </Text>
       )}
+      {expanded ? (
+        <Frame
+          name="Notes"
+          x={CARD_PAD}
+          y={HEADER_BAND_H}
+          width={NOTES_W}
+          height={notesH}
+          cornerRadius={4}
+          fill={PAPER}
+        >
+          {/* Ruled lines, one per text line, plus a red margin rule. */}
+          {Array.from({ length: Math.floor((notesH - 28) / NOTE_LINE_H) + 1 }).map(
+            (_, k) => (
+              <Rectangle
+                key={k}
+                x={0}
+                y={28 + k * NOTE_LINE_H}
+                width={NOTES_W}
+                height={1}
+                fill={PAPER_RULE}
+              />
+            )
+          )}
+          <Rectangle x={26} y={0} width={1} height={notesH} fill={PAPER_MARGIN} />
+          <Input
+            value={notes}
+            placeholder="Notes…"
+            onTextEditEnd={(e) => setNotes(e.characters)}
+            inputBehavior="multiline"
+            fontSize={12}
+            lineHeight={NOTE_LINE_H}
+            fill="#3A3A3A"
+            x={34}
+            y={8}
+            width={NOTES_W - 34 - 8}
+            inputFrameProps={{ fill: "#00000000", padding: 0 }}
+          />
+        </Frame>
+      ) : null}
       {expanded
         ? tiles.map((tile, i) => {
             // One image per tile, laid out by its normalized rect so the tiles
@@ -535,6 +600,7 @@ function CodeGraphWidget() {
   const [role] = useSyncedState<"launcher" | "node">("role", "launcher");
   const [node] = useSyncedState<NodeData | null>("node", null);
   const [expanded, setExpanded] = useSyncedState<boolean>("expanded", false);
+  const [notes, setNotes] = useSyncedState<string>("notes", "");
 
   const canToggle = role === "node" && !!node && expandable(node);
   const onToggle = async () => {
@@ -568,7 +634,15 @@ function CodeGraphWidget() {
   if (!expandable(node)) {
     return <LabelNode data={node} />;
   }
-  return <SnapshotNode data={node} expanded={expanded} onToggle={onToggle} />;
+  return (
+    <SnapshotNode
+      data={node}
+      expanded={expanded}
+      onToggle={onToggle}
+      notes={notes}
+      setNotes={setNotes}
+    />
+  );
 }
 
 widget.register(CodeGraphWidget);
