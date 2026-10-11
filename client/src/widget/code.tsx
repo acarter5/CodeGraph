@@ -295,6 +295,84 @@ async function renderGraph(msg: RenderGraphMessage, launcherId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Annotations: anything the user draws on top of a node (pen strokes, shapes,
+// stickies, text…) moves with it when its column shifts, and is hidden while
+// the node is collapsed. Ownership is geometric and decided at toggle time, so
+// nothing has to be registered when it's drawn: a node owns each sibling that
+// sits above it in z-order and whose bounding-box center falls on its card.
+// What a collapsed node hid is remembered (by id) in its plugin data.
+
+const HIDDEN_ANNOTATIONS_KEY = "hiddenAnnotations";
+
+type Annotation = SceneNode & { x: number; y: number };
+
+function isAnnotation(n: SceneNode): n is Annotation {
+  return (
+    n.visible &&
+    n.type !== "WIDGET" &&
+    // Connectors follow what they're attached to (and the graph's own are
+    // redrawn); sections are containers, not marks on a node.
+    n.type !== "CONNECTOR" &&
+    n.type !== "SECTION" &&
+    "x" in n
+  );
+}
+
+function attachedAnnotations(
+  nodes: { node: WidgetNode; expanded: boolean }[]
+): Map<string, Annotation[]> {
+  const out = new Map<string, Annotation[]>();
+  const claimed = new Set<string>();
+  const siblingsByParent = new Map<BaseNode, readonly SceneNode[]>();
+  for (const { node, expanded } of nodes) {
+    const parent = node.parent;
+    const bb = node.absoluteBoundingBox;
+    if (!parent || !("children" in parent) || !bb) {
+      continue;
+    }
+    let siblings = siblingsByParent.get(parent);
+    if (!siblings) {
+      siblings = parent.children;
+      siblingsByParent.set(parent, siblings);
+    }
+    // Size from the data, not the widget, in case it has already re-rendered.
+    const data = node.widgetSyncedState.node as NodeData;
+    const right = bb.x + widthOf(data, expanded);
+    const bottom = bb.y + heightOf(data, expanded);
+    const mine: Annotation[] = [];
+    for (let i = siblings.indexOf(node) + 1; i < siblings.length; i++) {
+      const a = siblings[i];
+      const abb = a.absoluteBoundingBox;
+      if (claimed.has(a.id) || !abb || !isAnnotation(a)) {
+        continue;
+      }
+      const cx = abb.x + abb.width / 2;
+      const cy = abb.y + abb.height / 2;
+      if (cx >= bb.x && cx <= right && cy >= bb.y && cy <= bottom) {
+        mine.push(a);
+        claimed.add(a.id);
+      }
+    }
+    out.set(node.id, mine);
+  }
+  return out;
+}
+
+// The annotations a collapsed node hid (any the user has since deleted are
+// dropped).
+async function hiddenAnnotations(node: WidgetNode): Promise<Annotation[]> {
+  const raw = node.getPluginData(HIDDEN_ANNOTATIONS_KEY);
+  const out: Annotation[] = [];
+  for (const id of raw ? (JSON.parse(raw) as string[]) : []) {
+    const a = await figma.getNodeByIdAsync(id);
+    if (a && !a.removed && "x" in a) {
+      out.push(a as Annotation);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Node: expand/collapse + make room in its column.
 
 async function toggleNode(selfId: string, data: NodeData, next: boolean) {
@@ -316,19 +394,50 @@ async function toggleNode(selfId: string, data: NodeData, next: boolean) {
   const delta = data.height - COLLAPSED_H;
   const half = (next ? delta : -delta) / 2;
   const level = levelOf(data.placementId);
+  const column = graphNodes.filter(
+    (n) => levelOf((n.widgetSyncedState.node as NodeData).placementId) === level
+  );
+  // Annotations ride along with the node they sit on. Find them all before
+  // anything moves, against each node's pre-toggle rect (`!next` for this one —
+  // its synced state hasn't re-rendered yet).
+  const attached = attachedAnnotations(
+    column.map((n) => ({
+      node: n,
+      expanded: n.id === self.id ? !next : !!n.widgetSyncedState.expanded,
+    }))
+  );
+  // Fetch every await up front: an `await` inside a `for…of` head compiles
+  // (via TS's generator downlevel + terser) to `for (x of yield …)`, which
+  // Figma's QuickJS rejects with "stack underflow" and the widget won't load.
+  const hidden = new Map<string, Annotation[]>();
+  for (const n of column) {
+    hidden.set(n.id, await hiddenAnnotations(n));
+  }
   const selfY = self.y;
-  for (const n of graphNodes) {
-    const d = n.widgetSyncedState.node as NodeData;
-    if (n.id === self.id || levelOf(d.placementId) !== level) {
-      continue;
-    }
-    if (n.y < selfY) {
-      n.y -= half;
-    } else {
-      n.y += half;
+  for (const n of column) {
+    const dy = n.id === self.id || n.y < selfY ? -half : half;
+    n.y += dy;
+    const owned = (attached.get(n.id) || []).concat(hidden.get(n.id) || []);
+    for (const a of owned) {
+      a.y += dy;
     }
   }
-  self.y = selfY - half;
+
+  // Collapsing hides what was drawn on the snapshot; expanding brings it back.
+  const selfHidden = hidden.get(self.id) || [];
+  if (next) {
+    for (const a of selfHidden) {
+      a.visible = true;
+    }
+    self.setPluginData(HIDDEN_ANNOTATIONS_KEY, "");
+  } else {
+    const hide = attached.get(self.id) || [];
+    for (const a of hide) {
+      a.visible = false;
+    }
+    const ids = selfHidden.concat(hide).map((a) => a.id);
+    self.setPluginData(HIDDEN_ANNOTATIONS_KEY, JSON.stringify(ids));
+  }
 
   if (figma.editorType !== "figjam") {
     return;
